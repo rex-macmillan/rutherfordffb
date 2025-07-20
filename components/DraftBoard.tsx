@@ -7,7 +7,7 @@ interface TradedPickMap { [key:string]: { ownerRosterId:number } }
 interface Props {
   slots: number[]; // slot numbers 1..n
   teams: TeamOption[]; // rosterId mapping for header names
-  picksByRound: { [round:number]: { [slot:number]: { rosterId:number; traded:boolean; fromRosterId?:number } } };
+  picksByRound: { [round:number]: { [slot:number]: { rosterId:number; traded:boolean; fromRosterId?:number; keeper?:boolean; playerName?:string; position?:string } } };
   maxRound: number;
   rosterIdToName: Record<number,string>;
 }
@@ -33,7 +33,9 @@ const DraftBoard:React.FC<Props>=({slots,teams,picksByRound,maxRound,rosterIdToN
             const label = round %2===1 ? `${round}.${slot}` : `${round}.${slots.length - slot + 1}`;
             return (
               <div key={key} className={styles.pickCell}>
-                {cell.traded ? (
+                {cell.keeper ? (
+                  <div className={styles.kept}>{cell.playerName}<br/><span style={{fontSize:"0.7rem",color:"#64748b"}}>{cell.position}</span></div>
+                ) : cell.traded ? (
                   <div className={styles.traded}>→ TRADED<br/>{rosterIdToName[cell.rosterId]}<br/>{label}</div>
                 ) : label}
               </div>

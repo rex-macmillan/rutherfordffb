@@ -45,6 +45,12 @@
   text-align: center;
 }
 
+.kept {
+  font-size: 0.7rem;
+  color: #16a34a;
+  text-align: center;
+}
+
 .wrapper {
   overflow: auto;
 } 

@@ -1,6 +1,6 @@
 import React, { createContext, useState, ReactNode, useContext } from "react";
 
-type SidebarId = "keeper" | "draft" | null;
+type SidebarId = "keeper" | "draft" | "keepers" | "best" | null;
 
 interface SidebarCtx {
   open: SidebarId;
