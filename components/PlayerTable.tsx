@@ -47,33 +47,56 @@ const PlayerTable: React.FC<Props> = ({ players, selected, onSelectionChange, ma
   // Compute adjusted rounds for selected keepers
   const computeAdjusted = () => {
     const selectedPlayers = players.filter((p) => selected.has(p.playerId));
-    // sort by keeperRound ascending
+    // Sort by keeper cost ascending so cheaper rounds are allocated first
     selectedPlayers.sort((a, b) => {
       const aR = a.keeperRound ?? 99;
       const bR = b.keeperRound ?? 99;
       return aR - bR;
     });
-    const taken = new Set<number>();
-    // populate with rounds missing because of trades (per roster)
-    selectedPlayers.forEach((p) => {
-      (missing[p.rosterId] || []).forEach((r) => taken.add(r));
+
+    // Build quick-lookup for traded-away rounds per roster
+    const missingSets: Record<number, Set<number>> = {};
+    Object.entries(missing).forEach(([rid, rounds]) => {
+      missingSets[parseInt(rid)] = new Set(rounds);
     });
+
+    // Track rounds already assigned for each roster
+    const taken = new Set<string>(); // key = `${rosterId}-${round}`
+
+    const key = (rid: number, rd: number) => `${rid}-${rd}`;
+    const isUnavailable = (rid: number, rd: number) => taken.has(key(rid, rd)) || (missingSets[rid]?.has(rd) ?? false);
+
     const map = new Map<string, number>();
+
     for (const p of selectedPlayers) {
-      let desired = p.keeperRound ?? 99;
-      const unavailable = (round:number)=>taken.has(round);
-      if (unavailable(desired)) {
-        // try earlier slots first
-        let earlier = desired - 1;
-        while (earlier >= 1 && unavailable(earlier)) earlier -= 1;
-        if (earlier >= 1 && !unavailable(earlier)) {
-          desired = earlier;
+      if (p.keeperRound == null) continue;
+      const rid = p.rosterId;
+      let desired = p.keeperRound;
+
+      if (isUnavailable(rid, desired)) {
+        const missingInDesired = missingSets[rid]?.has(desired) ?? false;
+
+        if (missingInDesired) {
+          // Round is missing due to a trade – try earlier first
+          let earlier = desired - 1;
+          while (earlier >= 1 && isUnavailable(rid, earlier)) earlier -= 1;
+          if (earlier >= 1 && !isUnavailable(rid, earlier)) {
+            desired = earlier;
+          } else {
+            let later = desired + 1;
+            while (isUnavailable(rid, later)) later += 1;
+            desired = later;
+          }
         } else {
-          while (unavailable(desired)) desired += 1;
+          // Round already taken by another keeper – move later
+          let later = desired + 1;
+          while (isUnavailable(rid, later)) later += 1;
+          desired = later;
         }
       }
+
       map.set(p.playerId, desired);
-      taken.add(desired);
+      taken.add(key(rid, desired));
     }
     return map;
   };
