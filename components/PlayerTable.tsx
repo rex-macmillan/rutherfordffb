@@ -107,6 +107,7 @@ const PlayerTable: React.FC<Props> = ({ players, selected, onSelectionChange, ma
     } else {
       const target = players.find((pl) => pl.playerId === playerId);
       if (!target) return;
+      if (target.rosterId === -1) return; // Free-agent players cannot be kept
       const sameTeamCount = Array.from(newSel).filter((pid) => {
         const p = players.find((pl) => pl.playerId === pid);
         return p && p.rosterId === target.rosterId;
@@ -146,10 +147,10 @@ const PlayerTable: React.FC<Props> = ({ players, selected, onSelectionChange, ma
                 <input
                   type="checkbox"
                   checked={selected.has(p.playerId)}
-                  disabled={!selected.has(p.playerId) && Array.from(selected).filter((pid)=>{
+                  disabled={p.rosterId === -1 || (!selected.has(p.playerId) && Array.from(selected).filter((pid)=>{
                     const pl=players.find(pp=>pp.playerId===pid);
                     return pl && pl.rosterId===p.rosterId;
-                  }).length >= maxKeepers}
+                  }).length >= maxKeepers)}
                   onChange={() => toggle(p.playerId)}
                 />
               </td>
