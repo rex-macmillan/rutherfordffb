@@ -1,0 +1,54 @@
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: -380px;
+  width: 360px;
+  height: 100vh;
+  background: #ffffff;
+  border-left: 1px solid #e2e8f0;
+  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+  transition: right 0.3s ease;
+  padding: 1rem;
+  padding-top: 8rem;
+  z-index: 1000;
+}
+
+.open {
+  right: 0;
+}
+
+.toggle {
+  position: fixed;
+  top: 3.5rem; /* below nav bar */
+  right: 1rem;
+  padding: .5rem 1rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table th,
+.table td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.table tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 300px;
+    right: -320px;
+  }
+} 

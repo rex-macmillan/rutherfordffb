@@ -1,0 +1,38 @@
+.nav {
+  display: flex;
+  gap: 1rem;
+  background: #0f172a;
+  padding: 0.75rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.link {
+  color: #e2e8f0;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+}
+
+.link:hover {
+  color: #fff;
+}
+
+.active {
+  color: #fff;
+  background-color: #1e40af;
+}
+
+.content {
+  padding: 1rem;
+}
+
+@media (max-width: 600px) {
+  .nav {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+} 
