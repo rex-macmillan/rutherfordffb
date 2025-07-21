@@ -7,10 +7,12 @@
   background: #ffffff;
   border-left: 1px solid #e2e8f0;
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box; /* include padding in height so bottom is reachable */
   transition: right 0.3s ease;
   padding: 1rem;
   padding-top: 8rem;
   z-index: 1000;
+  overflow-y: auto; /* allow internal scrolling when content exceeds viewport */
 }
 
 .open {
@@ -46,9 +48,18 @@
   background: #f9fafb;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .sidebar {
-    width: 300px;
-    right: -320px;
+    width: 90vw;
+    right: -100vw; /* slightly more so it’s fully hidden */
+  }
+
+  .open {
+    right: 0;
+  }
+
+  .toggle {
+    right: 0.75rem;
+    top: 3.25rem;
   }
 } 
