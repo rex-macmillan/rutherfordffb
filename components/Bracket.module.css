@@ -1,0 +1,70 @@
+.bracket {
+  display: flex;
+  gap: 2rem;
+  overflow-x: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.match {
+  background: #1e293b;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  min-width: 180px;
+  font-size: 0.85rem;
+}
+
+.header {
+  font-size: 0.75rem;
+  color: #fbbf24;
+  margin-bottom: 0.25rem;
+  text-align: center;
+}
+
+.team {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.15rem 0;
+}
+
+.vs {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* ---------- standings / draft table ---------- */
+
+.table {
+  width: 50%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  min-width: 700px;
+}
+
+.table th {
+  background: #0f172a;
+  color: #fff;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #1e293b;
+}
+
+.table td {
+  padding: 0.5rem 0.75rem;
+  /*border-bottom: 1px solid #334155;*/
+}
+
+.table tr:nth-child(even) td {
+  background: #d3d3d3;
+}
+
+.sortable:hover {
+  text-decoration: underline;
+} 

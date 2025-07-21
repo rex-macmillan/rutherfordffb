@@ -137,6 +137,11 @@ export async function getLosersBracket(leagueId: string): Promise<any[]> {
   return cachedFetch<any[]>(`/league/${leagueId}/losers_bracket`);
 }
 
+// Fetch matchups for a given week in a league (returns array of matchup objects)
+export async function getMatchups(leagueId: string, week: number): Promise<any[]> {
+  return cachedFetch<any[]>(`/league/${leagueId}/matchups/${week}`);
+}
+
 export function calculateKeeperRound(originalRound: number | null | undefined): number {
   // Mapping based on league's keeper rules
   const mapping: Record<number, number> = {
