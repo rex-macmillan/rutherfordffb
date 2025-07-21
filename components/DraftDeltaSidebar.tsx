@@ -11,7 +11,7 @@ const DraftDeltaSidebar: React.FC<Props> = ({ teams, deltas }) => {
   const isOpen = open === "draft";
   return (
     <>
-      <button className={styles.toggle} style={{ top: "6rem"}} onClick={() => setOpen(isOpen ? null : "draft")}>
+      <button className={styles.toggle} style={{ top: "6.5rem"}} onClick={() => setOpen(isOpen ? null : "draft")}>
         {isOpen ? "×" : "Draft Picks"}
       </button>
       <aside className={`${styles.sidebar} ${isOpen ? styles.open : ""}`}>

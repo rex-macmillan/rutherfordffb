@@ -21,7 +21,7 @@
 
 .toggle {
   position: fixed;
-  top: 3.5rem; /* below nav bar */
+  top: 3.75rem; /* below nav bar */
   right: 1rem;
   padding: .5rem 1rem;
   background: #2563eb;
@@ -60,6 +60,6 @@
 
   .toggle {
     right: 0.75rem;
-    top: 3.25rem;
+    top: 3.75rem;
   }
 } 

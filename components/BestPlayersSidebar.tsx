@@ -12,7 +12,7 @@ const BestPlayersSidebar: React.FC<Props> = ({ players }) => {
     <>
       <button
         className={styles.toggle}
-        style={{ top: "6rem" }}
+        style={{ top: "6.5rem" }}
         onClick={() => setOpen(isOpen ? null : "best")}
       >
         {isOpen ? "×" : "Best Available"}
