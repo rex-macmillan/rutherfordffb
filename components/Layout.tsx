@@ -17,6 +17,7 @@ const Layout: React.FC<Props> = ({ children }) => {
         <Link href="/" className={`${styles.link} ${router.pathname === "/" ? styles.active : ""}`}>Keeper Helper</Link>
         <Link href="/rules" className={`${styles.link} ${router.pathname.startsWith("/rules") ? styles.active : ""}`}>League Rules</Link>
         <Link href="/draftboard" className={`${styles.link} ${router.pathname.startsWith("/draftboard") ? styles.active : ""}`}>Draft Board</Link>
+        <Link href="/playoffs" className={`${styles.link} ${router.pathname.startsWith("/playoffs") ? styles.active : ""}`}>Playoffs</Link>
       </nav>
       <div className={styles.content}>{children}</div>
     </div>

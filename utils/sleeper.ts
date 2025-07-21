@@ -128,6 +128,15 @@ export async function getDraft(draftId: string): Promise<any> {
   return cachedFetch<any>(`/draft/${draftId}`);
 }
 
+export async function getWinnersBracket(leagueId: string): Promise<any[]> {
+  // season_type=playoff is default for winners
+  return cachedFetch<any[]>(`/league/${leagueId}/winners_bracket`);
+}
+
+export async function getLosersBracket(leagueId: string): Promise<any[]> {
+  return cachedFetch<any[]>(`/league/${leagueId}/losers_bracket`);
+}
+
 export function calculateKeeperRound(originalRound: number | null | undefined): number {
   // Mapping based on league's keeper rules
   const mapping: Record<number, number> = {
