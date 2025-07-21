@@ -333,14 +333,14 @@ export default function HomePage() {
       const existing = new Set(rows.map(r=>r.playerId));
       fcRanks.forEach((rank, pid)=>{
         if(rank<=200 && !existing.has(pid)){
-          const meta = playersMeta[pid] || {} as any;
+          const meta:any = playersMeta[pid] || {};
           let fullName = meta.full_name || `${meta.first_name||""} ${meta.last_name||""}`.trim();
           if ((meta as any).years_exp === 0) fullName += " (R)";
           let pos;
           if (Array.isArray(meta.fantasy_positions) && meta.fantasy_positions.length) {
             const priority = ["QB","RB","WR","TE"];
-            const found = priority.find((p)=>meta.fantasy_positions.includes(p));
-            pos = found || meta.fantasy_positions[0];
+            const found = priority.find((p)=>(meta.fantasy_positions as any).includes(p));
+            pos = found || (meta.fantasy_positions as any)[0];
           } else if (meta.position) {
             pos = ["QB","RB","WR","TE"].includes(meta.position)? meta.position : "WR";
           } else {
@@ -355,7 +355,7 @@ export default function HomePage() {
             currentTeam: "",
             previousTeam: "",
             position: pos,
-            teamAbbr: meta.team || meta.maybeTeam || "",
+            teamAbbr: meta.team || (meta as any).maybeTeam || "",
             round: null,
             pickNo: null,
             draftRank: Number.POSITIVE_INFINITY,
@@ -372,11 +372,14 @@ export default function HomePage() {
 
       setPlayers(rows);
 
-      // restore saved keepers
+      // restore saved keepers (support legacy array or new object with slots)
       const savedRaw=localStorage.getItem(`keepers-${currentLeagueId}`);
       if(savedRaw){
         try{
-          const arr: string[]=JSON.parse(savedRaw);
+          const parsed = JSON.parse(savedRaw);
+          let arr:string[]=[];
+          if(Array.isArray(parsed)) arr = parsed as string[];
+          else if(parsed && Array.isArray(parsed.ids)) arr = parsed.ids as string[];
           const s=new Set(arr);
           setSelectedKeepers(new Set(s));
           setSavedKeepers(new Set(s));
@@ -396,6 +399,51 @@ export default function HomePage() {
 
   const filteredByTeam = selectedRoster === "all" ? players : players.filter((p) => p.rosterId === selectedRoster);
   const filteredPlayers = selectedPos === "all" ? filteredByTeam : filteredByTeam.filter((p) => p.position === selectedPos);
+
+  // ---- helper to compute adjusted keeper slots (mirrors PlayerTable logic) ----
+  const computeAdjustedSlots = (): Map<string, number> => {
+    const selectedPlayers = players.filter(p => selectedKeepers.has(p.playerId));
+    selectedPlayers.sort((a,b)=> (a.keeperRound??99)-(b.keeperRound??99));
+
+    const missingSets: Record<number, Set<number>> = {};
+    Object.entries(draftDelta).forEach(([ridStr, d])=>{
+      const rid = parseInt(ridStr);
+      missingSets[rid] = new Set(d.missing.map(s=> parseInt(s.slice(1))));
+    });
+
+    const taken = new Set<string>();
+    const key = (rid:number, rd:number)=>`${rid}-${rd}`;
+    const isUnavailable = (rid:number, rd:number)=> taken.has(key(rid,rd)) || (missingSets[rid]?.has(rd) ?? false);
+
+    const map = new Map<string,number>();
+    for(const p of selectedPlayers){
+      if(p.keeperRound==null) continue;
+      const rid = p.rosterId;
+      let desired = p.keeperRound;
+
+      if(isUnavailable(rid, desired)){
+        const missingInDesired = missingSets[rid]?.has(desired) ?? false;
+        if(missingInDesired){
+          let earlier = desired-1;
+          while(earlier>=1 && isUnavailable(rid, earlier)) earlier-=1;
+          if(earlier>=1 && !isUnavailable(rid, earlier)) desired = earlier;
+          else {
+            let later = desired+1;
+            while(isUnavailable(rid, later)) later+=1;
+            desired = later;
+          }
+        }else{
+          let later = desired+1;
+          while(isUnavailable(rid, later)) later+=1;
+          desired = later;
+        }
+      }
+
+      map.set(p.playerId, desired);
+      taken.add(key(rid, desired));
+    }
+    return map;
+  };
 
   return (
     <main style={{ padding: "2rem" }}>
@@ -477,7 +525,13 @@ export default function HomePage() {
             {!areSetsEqual(selectedKeepers,savedKeepers) && (
             <button disabled={!leagueId}
               style={{padding:"0.5rem 1rem",border:"none",borderRadius:"6px",background:"#16a34a",color:"#fff",cursor: leagueId?"pointer":"not-allowed"}}
-              onClick={()=>{if(!leagueId) return; localStorage.setItem(`keepers-${leagueId}`,JSON.stringify(Array.from(selectedKeepers))); setSavedKeepers(new Set(selectedKeepers));}}>
+              onClick={()=>{
+                if(!leagueId) return;
+                const slotMap = computeAdjustedSlots();
+                const data = { ids: Array.from(selectedKeepers), slots: Object.fromEntries(slotMap) };
+                localStorage.setItem(`keepers-${leagueId}`, JSON.stringify(data));
+                setSavedKeepers(new Set(selectedKeepers));
+              }}>
               Save Keepers
             </button>
             )}
@@ -497,4 +551,9 @@ export default function HomePage() {
   );
 }
 
-function areSetsEqual(a:Set<string>,b:Set<string>){ if(a.size!==b.size) return false; for(const v of a) if(!b.has(v)) return false; return true; } 
+function areSetsEqual(a:Set<string>,b:Set<string>){
+  if(a.size!==b.size) return false;
+  let same=true;
+  a.forEach(v=>{ if(!b.has(v)) same=false; });
+  return same;
+} 

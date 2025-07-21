@@ -13,6 +13,7 @@ import {
   getPlayers,
   getFCRanks,
   calculateKeeperRound,
+  DraftPick,
 } from "../utils/sleeper";
 import DraftBoard from "../components/DraftBoard";
 import KeepersListSidebar from "../components/KeepersListSidebar";
@@ -93,10 +94,64 @@ export default function DraftBoardPage(){
           }catch{}
         }
 
-        // Helper: desired keeper cost
+        // ----------------- NEW: Build multi-season history for accurate keeper cost -----------------
+        interface HistInfo { base:number|null; streak:number; lastKeeper:boolean }
+        const infoMap = new Map<string, HistInfo>();
+        if(prevLeagueId){
+          const seasonDrafts: DraftPick[][] = [];
+          let chainLeagueId: string | undefined = prevLeagueId;
+          let depth = 0;
+          const MAX_DEPTH = 5; // safety limit
+          while(chainLeagueId && depth < MAX_DEPTH){
+            try{
+              const chainDrafts = await getLeagueDrafts(chainLeagueId);
+              if(chainDrafts.length){
+                const chainPicks = await getDraftPicks(chainDrafts[0].draft_id);
+                seasonDrafts.unshift(chainPicks); // oldest first
+              }
+              const chainLeague = await getLeague(chainLeagueId);
+              chainLeagueId = chainLeague.previous_league_id;
+            }catch{ chainLeagueId = undefined; }
+            depth += 1;
+          }
+
+          // Aggregate info per player across seasons
+          for(const picks of seasonDrafts){
+            for(const pick of picks){
+              const curr = infoMap.get(pick.player_id) || { base: null, streak: 0, lastKeeper: false } as HistInfo;
+              if(curr.base === null){
+                if(!pick.is_keeper){
+                  curr.base = pick.round;
+                  curr.streak = 0;
+                  curr.lastKeeper = false;
+                }
+              }else{
+                if(pick.is_keeper){
+                  curr.streak += 1;
+                  curr.lastKeeper = true;
+                }else{
+                  curr.base = pick.round;
+                  curr.streak = 0;
+                  curr.lastKeeper = false;
+                }
+              }
+              infoMap.set(pick.player_id, curr);
+            }
+          }
+        }
+
+        // Helper: desired keeper cost taking into account consecutive keeps
         const keeperCost = (pid:string): number => {
-          const r = roundMap.get(pid);
-          return calculateKeeperRound(r);
+          const info = infoMap.get(pid);
+          if(!info || info.base == null){
+            // Undrafted players cost 6th by default (league rule)
+            return 6;
+          }
+          let cost = info.base;
+          for(let i=0; i<info.streak + 1; i++){
+            cost = calculateKeeperRound(cost);
+          }
+          return cost;
         };
 
         // Compute missing (traded away) rounds per roster
@@ -140,33 +195,46 @@ export default function DraftBoardPage(){
         };
 
         // Build keeper objects array
-        interface KeeperObj { pid:string; rid:number; cost:number; name:string; position:string; }
+        interface KeeperObj { pid:string; rid:number; cost:number; name:string; position:string; placement?:number; }
         const keeperObjs: KeeperObj[] = [];
         let keeperIds: string[] = [];
+        let keeperSlots: Record<string, number> = {};
         const keeperRawTop = localStorage.getItem(`keepers-${currentLeagueId}`);
         if (keeperRawTop) {
           try {
-            keeperIds = JSON.parse(keeperRawTop) as string[];
+            const parsed = JSON.parse(keeperRawTop);
+            if(Array.isArray(parsed)){
+              keeperIds = parsed as string[];
+            } else if(parsed && Array.isArray(parsed.ids)){
+              keeperIds = parsed.ids as string[];
+              if(parsed.slots) keeperSlots = parsed.slots as Record<string,number>;
+            }
           } catch {}
         }
 
         keeperIds.forEach((pid:string)=>{
           const rid = pidToRosterId.get(pid);
           if(rid==null) return;
-          keeperObjs.push({pid,rid,cost:keeperCost(pid),name:nameFor(pid),position:posFor(pid)});
+          const placement = keeperSlots[pid];
+          keeperObjs.push({pid,rid,cost:keeperCost(pid),name:nameFor(pid),position:posFor(pid),placement});
         });
 
         // sort by cost ascending to allocate cheaper rounds first
         keeperObjs.sort((a,b)=> a.cost - b.cost);
 
         keeperObjs.forEach(k=>{
-          let desired = k.cost;
+          let desired = (k.placement && typeof k.placement==='number') ? k.placement : k.cost;
           const missSet = missingByRoster[k.rid] || new Set<number>();
           const isUnavailable = (round:number) => missSet.has(round) || taken.has(key(k.rid, round));
-          if(isUnavailable(desired)){
-            // look later rounds until available
-            let rd = desired+1;
-            while(isUnavailable(rd)) rd+=1;
+          if(k.placement==null && isUnavailable(desired)){
+            // Rule: if the pick round is unavailable due to trade or other keeper, move UP (earlier round)
+            let rd = desired-1;
+            while(rd>=1 && isUnavailable(rd)) rd-=1;
+            if(rd<1){
+              // fallback: if no earlier round available (unlikely), move downward until available
+              rd = desired+1;
+              while(isUnavailable(rd)) rd+=1;
+            }
             desired = rd;
           }
           taken.add(key(k.rid, desired));
