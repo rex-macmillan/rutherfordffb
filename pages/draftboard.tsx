@@ -5,6 +5,7 @@ import {
   getUserLeagues,
   getLeagueDrafts,
   getDraftPicks,
+  getDraft,
   getRosters,
   getTradedPicks,
   getLeague,
@@ -37,8 +38,10 @@ export default function DraftBoardPage(){
         const currentLeagueId=lg.league_id;
         const drafts=await getLeagueDrafts(currentLeagueId);
         if(!drafts.length) return;
-        const draft=drafts[0];
-        let slotMap:Record<string,number>= (draft as any).slot_to_roster_id||{};
+        const draftSummary=drafts[0];
+        // Fetch full draft details to get correct slot mapping
+        const draftDetails = await getDraft(draftSummary.draft_id);
+        let slotMap:Record<string,number>= draftDetails.slot_to_roster_id || draftDetails.draft_order || {};
         const [rosters,users]=await Promise.all([
           getRosters(currentLeagueId),
           getLeagueUsers(currentLeagueId),

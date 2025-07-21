@@ -123,6 +123,11 @@ export async function getDraftPicks(draftId: string): Promise<DraftPick[]> {
   return cachedFetch<DraftPick[]>(`/draft/${draftId}/picks`);
 }
 
+// Fetch full draft object (includes slot_to_roster_id / draft_order mapping)
+export async function getDraft(draftId: string): Promise<any> {
+  return cachedFetch<any>(`/draft/${draftId}`);
+}
+
 export function calculateKeeperRound(originalRound: number | null | undefined): number {
   // Mapping based on league's keeper rules
   const mapping: Record<number, number> = {
