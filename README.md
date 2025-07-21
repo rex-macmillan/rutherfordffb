@@ -5,7 +5,7 @@ This web application helps fantasy football managers in a Sleeper league determi
 ## Features
 
 * Fetches league, roster, and past-season draft information directly from the public Sleeper API.
-* Calculates each player’s *keeper round* (one round earlier than the round they were drafted last season).
+* Calculates each player’s *keeper round* (based on our keeper rules).
 * Lets each manager select up to **four** keepers.
 
 ## Getting Started
