@@ -72,9 +72,21 @@ const EVAL_TOOL = {
   input_schema: {
     type: "object" as const,
     properties: {
+      // IMPORTANT: This field must be filled BEFORE the verdict. It forces
+      // an explicit answer to the question "which side received more value"
+      // so the verdict can't drift to the wrong team via single-shot
+      // tool-call error.
+      valueWinner: {
+        type: "string",
+        enum: ["a", "b", "neither"],
+        description:
+          "Which side ended up with MORE NET VALUE after accounting for keeper cost economics. 'a' = Team A received more value (Team B gave more away). 'b' = Team B received more value. 'neither' = within ~10% of each other. This MUST match the verdict (a → team_a_wins, b → team_b_wins, neither → fair).",
+      },
       verdict: {
         type: "string",
         enum: ["fair", "team_a_wins", "team_b_wins"],
+        description:
+          "Derived from valueWinner. Use team_a_wins iff valueWinner === 'a'.",
       },
       confidenceNote: {
         type: "string",
@@ -105,6 +117,7 @@ const EVAL_TOOL = {
       },
     },
     required: [
+      "valueWinner",
       "verdict",
       "confidenceNote",
       "teamA",
@@ -185,19 +198,42 @@ ${formatSide(body.teamB, "B")}
 Proposed trade:
 ${describeTrade(body)}
 
-Analyze step by step, then call submit_evaluation. Pay special attention to:
-- Whether either side is acquiring a player whose keeper cost is meaningfully out of step with their PPR rank.
+Reason step by step BEFORE calling submit_evaluation:
+
+STEP 1 — Inventory direction.
+List exactly what each team RECEIVES (not what they had before). Be explicit:
+  "Team A receives: <players + picks from Team B>"
+  "Team B receives: <players + picks from Team A>"
+
+STEP 2 — Rank the assets.
+For each player moving in this trade, write one line:
+  "<player> (PPR rank N, keeper cost RX) — keeper value: <how mispriced vs rank>"
+A 6th-round keeper at PPR rank 11 (e.g. Achane R6) is one of the most valuable assets in the league. A 1st-round keeper at PPR rank 9 (e.g. Jeanty R1) is good but expensive. The cost-adjusted analysis often inverts raw rank.
+
+STEP 3 — Sum value per side.
+Add up the keeper-cost-adjusted value of what EACH SIDE RECEIVED. The side that received the most total cost-adjusted value is the winner.
+
+STEP 4 — Sanity check.
+Re-read STEP 1. The valueWinner you're about to submit MUST be the side that RECEIVED more, NOT the side that GAVE more. Common error: confusing "X gave up the more valuable asset" (which means X LOSES) with "X wins". If X gave up the more valuable asset, the OTHER side wins.
+
+STEP 5 — Fill the tool.
+Set valueWinner first ('a' if Team A received more value, 'b' if Team B received more value, 'neither' for within ~10%). Then set verdict to match (a→team_a_wins, b→team_b_wins, neither→fair). These two fields MUST be consistent.
+
+Also analyze:
 - Whether either side ends up with a keeper that needs to slide per §6 (a keeper whose natural round is now missing).
-- Whether the §3 duplicate-round rule will force a sliding chain on either side after the trade.
-- Whether the trade triggers the 50% insurance fee for either side (per §6, only the FIRST outgoing pick of the season triggers it).`;
+- Whether the §3 duplicate-round rule will force a sliding chain on either side.
+- Whether the trade triggers the 50% insurance fee per §6 (only the FIRST outgoing pick of the season triggers it).`;
 
   try {
     const response = await anthropic.messages.create({
-      model: MODELS.reasoning, // Opus for the harder rule reasoning.
-      max_tokens: 3072,
+      model: MODELS.reasoning,
+      max_tokens: 4096,
+      temperature: 0, // deterministic for this critical reasoning task
       system: systemBlocks(),
       tools: [EVAL_TOOL],
-      tool_choice: { type: "tool", name: "submit_evaluation" },
+      // tool_choice: 'any' lets the model think out loud first, then commit
+      // to the tool when ready — instead of single-shot tool emission.
+      tool_choice: { type: "any" },
       messages: [{ role: "user", content: userPrompt }],
     });
 
@@ -209,8 +245,28 @@ Analyze step by step, then call submit_evaluation. Pay special attention to:
       });
     }
 
+    const result: any = unwrapToolInput(toolUse.input, "verdict");
+
+    // Enforce consistency: valueWinner is the source of truth, verdict
+    // derives from it. If the model produced a mismatch, fix it server-side
+    // so the UI never shows a contradictory pill.
+    const derived: Record<string, string> = {
+      a: "team_a_wins",
+      b: "team_b_wins",
+      neither: "fair",
+    };
+    if (result?.valueWinner && derived[result.valueWinner]) {
+      const expected = derived[result.valueWinner];
+      if (result.verdict !== expected) {
+        result.verdict = expected;
+        result.confidenceNote =
+          (result.confidenceNote ? `${result.confidenceNote} ` : "") +
+          `(verdict normalized from model output to match valueWinner=${result.valueWinner})`;
+      }
+    }
+
     return res.status(200).json({
-      result: unwrapToolInput(toolUse.input, "verdict"),
+      result,
       usage: response.usage,
     });
   } catch (e: any) {
