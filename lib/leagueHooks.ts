@@ -34,31 +34,62 @@ import { derivePlayerRows, DeriveResult, PlayerRow, TeamOption } from "./deriveP
 export interface CurrentLeagueResult {
   league?: League;
   season?: string;
+  /** True when we fell back to a non-current season league (e.g. offseason). */
+  isFallbackSeason: boolean;
+  /** The season Sleeper claims is current (may not match `season`). */
+  apiSeason?: string;
   isLoading: boolean;
   error?: Error | null;
 }
 
 /**
  * Resolves the identity username to a single league. If the user has multiple
- * leagues in the current season we just take the first — same as today.
+ * leagues in the current season we just take the first.
+ *
+ * Offseason fallback: Sleeper flips `league_season` to the new year before
+ * managers have re-created their leagues for that year. If the current-season
+ * query returns an empty array, fall back to the previous season so the site
+ * still has data to show. This is the dominant offseason use case — managers
+ * planning the upcoming year's keepers based on the just-ended league.
  */
 export function useCurrentLeague(): CurrentLeagueResult {
   const { username } = useIdentity();
   const userQ = useSleeperUser(username);
   const stateQ = useNFLState();
-  const leaguesQ = useUserLeagues(userQ.data?.user_id, stateQ.data?.league_season);
 
-  const league = leaguesQ.data?.[0];
-  const isLoading = userQ.isLoading || stateQ.isLoading || leaguesQ.isLoading;
+  const apiSeason = stateQ.data?.league_season;
+  const prevApiSeason = (stateQ.data as any)?.previous_season as string | undefined;
+
+  const currentQ = useUserLeagues(userQ.data?.user_id, apiSeason);
+  const fallbackQ = useUserLeagues(
+    userQ.data?.user_id,
+    // Only resolve to a real value (i.e. fire the query) when current is known-empty.
+    currentQ.data && currentQ.data.length === 0 ? prevApiSeason : undefined,
+  );
+
+  const usedFallback =
+    !!currentQ.data && currentQ.data.length === 0 && !!fallbackQ.data?.length;
+  const league = currentQ.data?.[0] ?? fallbackQ.data?.[0];
+  const season = league?.season;
+
+  const isLoading =
+    userQ.isLoading ||
+    stateQ.isLoading ||
+    currentQ.isLoading ||
+    // Only count the fallback as "loading" once it's actually enabled.
+    (usedFallback ? false : fallbackQ.isFetching);
   const error =
     (userQ.error as Error | null) ??
     (stateQ.error as Error | null) ??
-    (leaguesQ.error as Error | null) ??
+    (currentQ.error as Error | null) ??
+    (fallbackQ.error as Error | null) ??
     null;
 
   return {
     league,
-    season: stateQ.data?.league_season,
+    season,
+    apiSeason,
+    isFallbackSeason: usedFallback,
     isLoading,
     error,
   };

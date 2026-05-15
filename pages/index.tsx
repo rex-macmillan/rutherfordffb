@@ -20,8 +20,14 @@ const MAX_KEEPERS_PER_TEAM = 4;
 
 export default function HomePage() {
   const { username } = useIdentity();
-  const { league, season, isLoading: leagueLoading, error: leagueError } =
-    useCurrentLeague();
+  const {
+    league,
+    season,
+    apiSeason,
+    isFallbackSeason,
+    isLoading: leagueLoading,
+    error: leagueError,
+  } = useCurrentLeague();
   const {
     data,
     isLoading: dataLoading,
@@ -177,6 +183,22 @@ export default function HomePage() {
     <div className="space-y-4">
       <CountdownBanner />
 
+      {isFallbackSeason && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Sleeper says it&apos;s the <strong>{apiSeason}</strong> season, but you don&apos;t have a{" "}
+          {apiSeason} league yet. Showing <strong>{season}</strong> data so you can plan ahead.
+        </div>
+      )}
+
+      {!leagueLoading && !league && (
+        <Card>
+          <CardBody className="text-sm text-ink-700">
+            No Sleeper leagues found for <strong>{username}</strong>. If you have a different
+            Sleeper username, click <em>switch</em> in the top right to change it.
+          </CardBody>
+        </Card>
+      )}
+
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">
@@ -186,6 +208,12 @@ export default function HomePage() {
             {isShared
               ? "Shared league mode — your selections are visible to everyone."
               : "Local mode — selections saved to this device only."}
+            {season && (
+              <>
+                {" · "}
+                <span className="text-ink-400">Season {season}</span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

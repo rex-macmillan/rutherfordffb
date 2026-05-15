@@ -5,8 +5,9 @@ import { Skeleton } from "../components/ui/Skeleton";
 import { Avatar } from "../components/ui/Avatar";
 import { Table, THead, TBody, TR, TH, TD } from "../components/ui/Table";
 import { cn } from "../lib/cn";
-import { useCurrentLeague, usePreviousLeague } from "../lib/leagueHooks";
+import { useCurrentLeague } from "../lib/leagueHooks";
 import {
+  useLeague,
   useLeagueUsers,
   useLosersBracket,
   useMatchupsByWeek,
@@ -73,10 +74,15 @@ function resolveBracket(rawArr: any[] | undefined, seedMap: Record<number, numbe
 }
 
 export default function PlayoffsPage() {
-  const { league: currentLeague } = useCurrentLeague();
-  const prevLeagueQ = usePreviousLeague(currentLeague);
+  const { league: currentLeague, isFallbackSeason } = useCurrentLeague();
+  // In fallback mode the "current" league IS the just-completed season —
+  // its bracket is what we want to show. In normal mode, the just-completed
+  // season is one hop back via previous_league_id.
+  const prevLeagueId = isFallbackSeason
+    ? currentLeague?.league_id
+    : currentLeague?.previous_league_id;
+  const prevLeagueQ = useLeague(prevLeagueId);
   const prevLeague = prevLeagueQ.data;
-  const prevLeagueId = currentLeague?.previous_league_id;
 
   const rostersQ = useRosters(prevLeagueId);
   const usersQ = useLeagueUsers(prevLeagueId);
