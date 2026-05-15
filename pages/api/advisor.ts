@@ -25,42 +25,100 @@ interface AdvisorRequest {
   extraPicks: number[];
 }
 
+const KEEPER_ITEM = {
+  type: "object" as const,
+  properties: {
+    playerId: { type: "string" },
+    name: { type: "string" },
+    keeperRound: {
+      type: "number",
+      description: "The round this keeper costs (per §2 mapping).",
+    },
+    positionalRank: {
+      type: "string",
+      description:
+        "Position-specific rank, e.g. 'RB5', 'QB12', 'WR23'. Use the annotated value from the roster prompt.",
+    },
+    typicalDraftRound: {
+      type: "string",
+      description:
+        "Where this player would typically be picked in a clean 12-team PPR snake draft, given the positional rank. Format like 'R3' or 'R3-R4'. Be honest — a WR23 doesn't go in R2, they go R3-R4.",
+    },
+    equityRounds: {
+      type: "number",
+      description:
+        "Signed number: (typical draft round) - (keeper round). Positive = you're keeping below market = good. Negative = overpaying. ~0 = market price. Example: WR23 (typical R3-R4) at R2 keeper = -1.5 equity.",
+    },
+    multiYearOutlook: {
+      type: "string",
+      description:
+        "How many seasons can this player realistically stay a keeper given §2 escalation? Examples: 'one-shot (escalates to R1 next year)', '3-year ladder R6→R5→R4', 'declining player, one-shot only'.",
+    },
+    rationale: {
+      type: "string",
+      description:
+        "2-3 sentences. Must reference the equity calculation and multi-year outlook. Avoid generic praise like 'great player'.",
+    },
+  },
+  required: [
+    "playerId",
+    "name",
+    "keeperRound",
+    "positionalRank",
+    "typicalDraftRound",
+    "equityRounds",
+    "multiYearOutlook",
+    "rationale",
+  ],
+};
+
 const RECOMMEND_TOOL = {
   name: "submit_recommendation",
   description: "Submit the final keeper recommendation for this team.",
   input_schema: {
     type: "object" as const,
+    // Order matters — model fills top to bottom. Force the per-player
+    // analysis FIRST, then derive count advice + recommendations from it.
     properties: {
+      perPlayerAnalysis: {
+        type: "array",
+        description:
+          "REQUIRED first step. Score EVERY non-trivial keeper candidate on the roster (top ~10 by positional rank or any player with keeper cost ≤ R10). Be rigorous about the equity math — do not skip players just because they have famous names or just because their overall PPR rank looks low. This is the working-out that the final recommendation derives from.",
+        items: {
+          ...KEEPER_ITEM,
+          properties: {
+            ...KEEPER_ITEM.properties,
+            verdict: {
+              type: "string",
+              enum: ["keep", "borderline", "drop"],
+              description:
+                "Based on equityRounds + multiYearOutlook + age/trajectory.",
+            },
+          },
+          required: [...KEEPER_ITEM.required, "verdict"],
+        },
+      },
       recommendedKeepers: {
         type: "array",
         description:
-          "Between 0 and 4 players you'd actually keep. Each must reference a playerId from the roster.",
-        items: {
-          type: "object",
-          properties: {
-            playerId: { type: "string" },
-            name: { type: "string" },
-            keeperRound: { type: "number" },
-            rationale: {
-              type: "string",
-              description:
-                "1-2 sentences explaining why this player at this round is a strong keep.",
-            },
-          },
-          required: ["playerId", "name", "keeperRound", "rationale"],
-        },
+          "Final ranked list (best first) of 0–4 players this manager should declare. Must be drawn from perPlayerAnalysis entries with verdict='keep'. Order by overall value (equity + multi-year potential).",
+        items: KEEPER_ITEM,
       },
       alternatives: {
         type: "array",
         description:
-          "Borderline players that didn't make the cut but are close. Up to 3.",
+          "Up to 3 borderline players that didn't make the final cut but were close. Should be the verdict='borderline' entries from perPlayerAnalysis.",
         items: {
           type: "object",
           properties: {
             playerId: { type: "string" },
             name: { type: "string" },
             keeperRound: { type: "number" },
-            reason: { type: "string" },
+            reason: {
+              type: "string",
+              description:
+                "Why borderline — what specifically would push them onto the list (e.g., 'if you have conviction on his sophomore leap', 'if Adams's ADP rises pre-draft').",
+            },
           },
           required: ["playerId", "name", "keeperRound", "reason"],
         },
@@ -68,24 +126,32 @@ const RECOMMEND_TOOL = {
       keeperCountAdvice: {
         type: "string",
         description:
-          "Discussion of how many keepers to take given the 3rd/4th keeper entry-fee cost (+$50/+$75). Explain whether spending the extra is worth it for THIS roster.",
+          "How many keepers to take. Frame as: '3 keepers ($225) keeps these N positive-equity locks. The 4th (+$75) would be X — is it worth $75 + an Rx pick for that specific player?' Explicitly state the dollar+pick cost of going from 3→4.",
+      },
+      trapsAvoided: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "List of name-brand traps this analysis explicitly REJECTED, with one-line reason. e.g. 'Davante Adams (R2 / WR23): negative equity (~R3-4 market value), R2→R1 escalation makes it one-shot, age 32 declining'. Empty array is fine if no such traps exist on this roster.",
       },
       keyConsiderations: {
         type: "array",
         items: { type: "string" },
         description:
-          "Bullet-style insights: pick-slide-up implications, consecutive-keep escalation risk, undervalued late-round keepers, etc.",
+          "Other insights: slide-up impacts (§6), duplicate-round chains (§3), consecutive-keep escalation paths, etc.",
       },
       riskAssessment: {
         type: "string",
         description:
-          "Brief on the riskiest part of the recommendation — injury concerns, age cliff, schedule, ADP volatility.",
+          "What's the riskiest part of the recommendation? Injury, schedule, ADP fragility, etc.",
       },
     },
     required: [
+      "perPlayerAnalysis",
       "recommendedKeepers",
       "alternatives",
       "keeperCountAdvice",
+      "trapsAvoided",
       "keyConsiderations",
       "riskAssessment",
     ],
@@ -161,45 +227,117 @@ export default async function handler(
     body.managerName ? ` (manager: ${body.managerName})` : ""
   }
 
-Current roster (each player annotated with positional rank — QB12 means he's the 12th-best QB league-wide, NOT his overall position):
+Current roster (each player annotated with POSITIONAL rank — QB12 means he's the 12th-best QB league-wide, NOT his overall PPR rank):
 ${formatRoster(body.roster, posRanks)}
 
 Draft pick situation for this team:
 - Extra picks gained via trade: ${body.extraPicks.length ? body.extraPicks.map((r) => `R${r}`).join(", ") : "none"}
 - Missing picks (traded away): ${body.missingPicks.length ? body.missingPicks.map((r) => `R${r}`).join(", ") : "none"}
 
-IMPORTANT — how to read the value of each player:
+==================================================================
+EVALUATION FRAMEWORK — apply RIGOROUSLY to every viable candidate
+==================================================================
 
-  Overall PPR rank deflates QBs and TEs because they accrue fewer points
-  in PPR scoring. So a QB at overall rank 92 might be QB12 (a real
-  fantasy starter) — at R10 keeper cost that's positive equity, not
-  garbage. Conversely, a WR at overall rank 92 is WR40-ish (deep bench).
-  Use the positional rank annotated next to each player, NOT just the
-  overall rank, when judging value-at-keeper-cost. Especially for QB and
-  TE, where positional scarcity matters more than overall rank.
+For each keeper-eligible player (top ~10 by positional rank + anyone with
+keeper cost ≤ R10), do this math BEFORE recommending anything:
 
-Recommend which keepers this manager should declare. Account for:
-1. Value at the keeper cost — compare POSITIONAL rank vs the round they'd cost.
-   A QB12 at R10 is roughly fair-to-positive equity. A QB6 at R8 is great.
-2. Position scarcity — elite TE or QB1 are scarcer than another WR.
-3. The §6 slide-up rule if any missing picks would force keepers to slide.
-4. The §3 duplicate-round rule if multiple keepers share the same cost.
-5. Entry-fee economics — is the 3rd (+$50) or 4th (+$75) keeper worth it?
-   Frame this as "the 4th keeper costs $75 of cash + an Rx pick; is the
-   surplus value of THIS specific Rx player worth that?"
-6. Consecutive-keep escalation for next year — flag anyone whose cost will
-   rise meaningfully if kept twice in a row.
+(1) TYPICAL DRAFT ROUND from positional rank.
+    Use these benchmarks for a clean 12-team PPR snake draft:
+      - RB1-RB6           → R1
+      - RB7-RB12          → R2
+      - RB13-RB20         → R3-R4
+      - RB21-RB30         → R5-R7
+      - RB31+             → R8+
+      - WR1-WR8           → R1-R2
+      - WR9-WR15          → R2-R3
+      - WR16-WR24         → R3-R4
+      - WR25-WR36         → R5-R7
+      - WR37+             → R8+
+      - TE1-TE3           → R3-R5 (elite tier)
+      - TE4-TE8           → R5-R8
+      - TE9-TE14          → R9-R12
+      - QB1-QB6 (1QB)     → R5-R8 (only if you reach)
+      - QB7-QB12 (1QB)    → R9-R12
+      - QB13+             → R13+
 
-Make sure to evaluate EVERY position group, including QBs and TEs at their
-positional ranks. Do not skip a player just because their overall rank looks
-low — re-read their positional rank first.
+(2) EQUITY = (typical draft round) - (keeper round).
+    POSITIVE = below market = good keeper. NEGATIVE = overpay.
+    Examples:
+      - Achane (RB5, R6 keeper)    = R1 - R6  = +5    excellent
+      - London (WR8, R4 keeper)    = R2 - R4  = +2    very good
+      - LaPorta (TE6, R7 keeper)   = R6 - R7  = +1 + TE scarcity premium
+      - Dart (QB12, R10 keeper)    = R10 - R10 = 0    fair + multi-year
+      - Adams (WR23, R2 keeper)    = R3.5 - R2 = -1.5 NEGATIVE (TRAP)
+      - Wilson (WR15, R1 keeper)   = R2.5 - R1 = -1.5 NEGATIVE (TRAP)
 
-Call submit_recommendation with your structured analysis.`;
+(3) MULTI-YEAR LADDER. Apply §2 to find next year's cost.
+      R10 → R8 → R7 → R6 ...     long ladder, ascending value
+      R6  → R5 → R4 → R3 ...     4-year keeper potential
+      R4  → R3 → R2 → R1         3-year ladder
+      R2  → R1                   ONE-SHOT (R1 is the practical ceiling)
+      R1  → R1                   stays R1 (only worth it for true elites)
+    A young player with a long ladder is worth MORE than the equity number
+    alone suggests. An aging player at a one-shot threshold is worth LESS.
+
+(4) AGE / TRAJECTORY. Brief signal:
+      - 32+ years old      → declining, one-shot at best
+      - 28-31              → peak, multi-year if equity supports
+      - <28                → ascending, multi-year is more valuable
+
+(5) VERDICT for each player: keep / borderline / drop.
+    Keep: equity ≥ +1.5 round, OR (≥ 0 equity AND long multi-year ladder
+          AND ascending trajectory).
+    Drop: equity ≤ 0 AND short ladder (≤1 more year of keepability).
+    Borderline: in between.
+
+==================================================================
+NAME-BRAND TRAPS — actively flag and reject
+==================================================================
+
+These are the recurring blind spots. Catch them explicitly:
+
+  - "Famous WR at R1-R2 keeper" who's actually a WR15-WR25 in the rankings.
+    A 30+ year old name brand on a new team is the classic trap. Common
+    examples: Davante Adams, Mike Evans, Stefon Diggs, DeAndre Hopkins.
+    They feel like value because the name is big. The cost-vs-positional-
+    rank math says otherwise. The §2 escalation to R1 makes them one-shot.
+    DROP these unless equity is meaningfully positive.
+
+  - "Aging RB at R3-R5 keeper" similarly — Derrick Henry late-career, etc.
+
+  - Deflated-rank QB/TE underrating. A QB12 at R10 looks like "nothing
+    special" if you compare overall ranks, but at a position rank of 12
+    in a 1QB league, that's a real starter at market-or-below cost with
+    multi-year upside. Don't dismiss it.
+
+  - The "only big-name asset" trap. Sometimes a roster has one famous
+    player who's actually negative equity, but the model wants to
+    recommend SOMEONE. Be willing to recommend FEWER than 4 keepers if
+    the math doesn't support more.
+
+==================================================================
+DELIVERABLE
+==================================================================
+
+Fill the tool fields in order (the schema declares them in the order you
+should reason):
+
+  1. perPlayerAnalysis: do the math for every viable candidate (typical
+     draft round, equity, multi-year, age/trajectory, verdict).
+  2. recommendedKeepers: ordered list of verdict='keep' entries.
+  3. alternatives: verdict='borderline' entries with what would tip them.
+  4. keeperCountAdvice: dollar+pick math for going from 3 → 4 keepers.
+  5. trapsAvoided: name the specific name-brand traps you rejected.
+  6. keyConsiderations + riskAssessment.
+
+Be willing to recommend 2 or 3 keepers if the 4th-best option is genuinely
+negative equity. Avoid filling 4 slots out of completeness — recommend the
+math, not the slot count.`;
 
   try {
     const response = await anthropic.messages.create({
       model: MODELS.balanced,
-      max_tokens: 2048,
+      max_tokens: 6144,
       system: systemBlocks(),
       tools: [RECOMMEND_TOOL],
       tool_choice: { type: "tool", name: "submit_recommendation" },

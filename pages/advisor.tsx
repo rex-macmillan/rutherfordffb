@@ -6,13 +6,24 @@ import { useCurrentLeague, useKeeperHelperData } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
 import { cn } from "../lib/cn";
 
+interface AnalyzedPlayer {
+  playerId: string;
+  name: string;
+  keeperRound: number;
+  positionalRank: string;
+  typicalDraftRound: string;
+  equityRounds: number;
+  multiYearOutlook: string;
+  rationale: string;
+}
+
+interface AnalyzedPlayerWithVerdict extends AnalyzedPlayer {
+  verdict: "keep" | "borderline" | "drop";
+}
+
 interface Recommendation {
-  recommendedKeepers: {
-    playerId: string;
-    name: string;
-    keeperRound: number;
-    rationale: string;
-  }[];
+  perPlayerAnalysis: AnalyzedPlayerWithVerdict[];
+  recommendedKeepers: AnalyzedPlayer[];
   alternatives: {
     playerId: string;
     name: string;
@@ -20,6 +31,7 @@ interface Recommendation {
     reason: string;
   }[];
   keeperCountAdvice: string;
+  trapsAvoided: string[];
   keyConsiderations: string[];
   riskAssessment: string;
 }
@@ -173,25 +185,17 @@ export default function AdvisorPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Recommended Keepers ({result.recommendedKeepers.length})</CardTitle>
+              <CardTitle>
+                Recommended Keepers ({result.recommendedKeepers.length})
+              </CardTitle>
             </CardHeader>
             <CardBody className="space-y-3">
               {result.recommendedKeepers.map((k, idx) => (
-                <div key={k.playerId} className="rounded-lg border border-ink-200 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">
-                      {idx + 1}. {k.name}
-                    </div>
-                    <div className="rounded bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-800">
-                      R{k.keeperRound}
-                    </div>
-                  </div>
-                  <p className="mt-1 text-sm text-ink-700">{k.rationale}</p>
-                </div>
+                <KeeperCard key={k.playerId} k={k} rank={idx + 1} />
               ))}
               {result.recommendedKeepers.length === 0 && (
                 <p className="text-sm text-ink-500">
-                  Advisor recommends no keepers this year.
+                  Advisor recommends no keepers this year — no positive-equity candidates on the roster.
                 </p>
               )}
             </CardBody>
@@ -206,6 +210,21 @@ export default function AdvisorPage() {
             </CardBody>
           </Card>
 
+          {result.trapsAvoided?.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Name-brand traps rejected</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <ul className="list-disc space-y-1 pl-5 text-sm text-ink-700">
+                  {result.trapsAvoided.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </CardBody>
+            </Card>
+          )}
+
           {result.alternatives.length > 0 && (
             <Card>
               <CardHeader>
@@ -219,6 +238,62 @@ export default function AdvisorPage() {
                     <span className="text-ink-700">— {a.reason}</span>
                   </div>
                 ))}
+              </CardBody>
+            </Card>
+          )}
+
+          {result.perPlayerAnalysis?.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Per-player breakdown</CardTitle>
+              </CardHeader>
+              <CardBody className="overflow-x-auto p-0">
+                <table className="w-full text-sm">
+                  <thead className="bg-ink-50 text-xs uppercase text-ink-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Player</th>
+                      <th className="px-3 py-2 text-left">Pos rank</th>
+                      <th className="px-3 py-2 text-left">Keeper</th>
+                      <th className="px-3 py-2 text-left">Typical</th>
+                      <th className="px-3 py-2 text-right">Equity</th>
+                      <th className="px-3 py-2 text-left">Verdict</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...result.perPlayerAnalysis]
+                      .sort((a, b) => b.equityRounds - a.equityRounds)
+                      .map((p) => (
+                        <tr key={p.playerId} className="border-t border-ink-100">
+                          <td className="px-3 py-2 font-medium">{p.name}</td>
+                          <td className="px-3 py-2 text-ink-700">{p.positionalRank}</td>
+                          <td className="px-3 py-2">R{p.keeperRound}</td>
+                          <td className="px-3 py-2 text-ink-700">{p.typicalDraftRound}</td>
+                          <td
+                            className={cn(
+                              "px-3 py-2 text-right font-semibold tabular-nums",
+                              p.equityRounds > 0 && "text-emerald-700",
+                              p.equityRounds < 0 && "text-red-700",
+                            )}
+                          >
+                            {p.equityRounds > 0 ? "+" : ""}
+                            {p.equityRounds.toFixed(1)}
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={cn(
+                                "rounded px-2 py-0.5 text-xs font-semibold",
+                                p.verdict === "keep" && "bg-emerald-100 text-emerald-800",
+                                p.verdict === "borderline" && "bg-amber-100 text-amber-800",
+                                p.verdict === "drop" && "bg-red-100 text-red-800",
+                              )}
+                            >
+                              {p.verdict}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </CardBody>
             </Card>
           )}
@@ -241,11 +316,47 @@ export default function AdvisorPage() {
               <CardTitle>Risk assessment</CardTitle>
             </CardHeader>
             <CardBody>
-              <p className={cn("text-sm text-ink-700")}>{result.riskAssessment}</p>
+              <p className="text-sm text-ink-700">{result.riskAssessment}</p>
             </CardBody>
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function KeeperCard({ k, rank }: { k: AnalyzedPlayer; rank: number }) {
+  return (
+    <div className="rounded-lg border border-ink-200 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="font-semibold">
+          {rank}. {k.name}{" "}
+          <span className="ml-1 text-xs font-normal text-ink-500">
+            ({k.positionalRank})
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="rounded bg-brand-50 px-2 py-0.5 font-medium text-brand-800">
+            R{k.keeperRound}
+          </span>
+          <span className="text-ink-500">vs typical {k.typicalDraftRound}</span>
+          <span
+            className={cn(
+              "rounded px-2 py-0.5 font-semibold tabular-nums",
+              k.equityRounds > 0 && "bg-emerald-100 text-emerald-800",
+              k.equityRounds < 0 && "bg-red-100 text-red-800",
+              k.equityRounds === 0 && "bg-ink-100 text-ink-700",
+            )}
+          >
+            {k.equityRounds > 0 ? "+" : ""}
+            {k.equityRounds.toFixed(1)} eq
+          </span>
+        </div>
+      </div>
+      <p className="mt-1 text-sm text-ink-700">{k.rationale}</p>
+      <p className="mt-1 text-xs text-ink-500">
+        Multi-year: {k.multiYearOutlook}
+      </p>
     </div>
   );
 }
