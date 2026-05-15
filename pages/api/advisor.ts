@@ -47,7 +47,7 @@ const KEEPER_ITEM = {
     equityRounds: {
       type: "number",
       description:
-        "Signed number: (typical draft round) - (keeper round). Positive = you're keeping below market = good. Negative = overpaying. ~0 = market price. Example: WR23 (typical R3-R4) at R2 keeper = -1.5 equity.",
+        "Signed number: (keeper round) - (typical draft round). POSITIVE means keeper round number is LATER than typical draft round = you're paying a cheap pick for a premium player = good. NEGATIVE means keeper round is EARLIER than typical = paying an expensive pick for a low-value player = overpay. Examples: Achane R6 keeper / R1 typical = +5. Spears R6 keeper / R11 typical = -5 (BAD, paying R6 for waiver-tier RB). LaPorta R7 keeper / R6 typical = +1. Wilson R1 keeper / R2.5 typical = -1.5.",
     },
     multiYearOutlook: {
       type: "string",
@@ -282,33 +282,59 @@ For each keeper-eligible player (top ~10 by positional rank + anyone with
 keeper cost ≤ R10), do this math BEFORE recommending anything:
 
 (1) TYPICAL DRAFT ROUND from positional rank.
-    Use these benchmarks for a clean 12-team PPR snake draft:
+    Use these benchmarks for a clean 12-team 1QB PPR snake draft.
+    Numbers represent a SINGLE round (not "earliest to latest" — pick the
+    most representative round for that tier):
       - RB1-RB6           → R1
       - RB7-RB12          → R2
-      - RB13-RB20         → R3-R4
-      - RB21-RB30         → R5-R7
-      - RB31+             → R8+
-      - WR1-WR8           → R1-R2
-      - WR9-WR15          → R2-R3
-      - WR16-WR24         → R3-R4
-      - WR25-WR36         → R5-R7
-      - WR37+             → R8+
-      - TE1-TE3           → R3-R5 (elite tier)
-      - TE4-TE8           → R5-R8
-      - TE9-TE14          → R9-R12
-      - QB1-QB6 (1QB)     → R5-R8 (only if you reach)
-      - QB7-QB12 (1QB)    → R9-R12
-      - QB13+             → R13+
+      - RB13-RB20         → R4
+      - RB21-RB30         → R7
+      - RB31-RB40         → R11
+      - RB41+             → R14+ or undrafted
+      - WR1-WR8           → R2
+      - WR9-WR15          → R3
+      - WR16-WR24         → R4
+      - WR25-WR36         → R7
+      - WR37-WR50         → R11
+      - WR51+             → R14+ or undrafted
+      - TE1-TE3           → R4 (elite tier)
+      - TE4-TE8           → R6
+      - TE9-TE14          → R10
+      - TE15+             → R14+ or undrafted
+      - QB1-QB6 (1QB)     → R6
+      - QB7-QB12 (1QB)    → R10
+      - QB13+             → R14+
 
-(2) EQUITY = (typical draft round) - (keeper round).
-    POSITIVE = below market = good keeper. NEGATIVE = overpay.
-    Examples:
-      - Achane (RB5, R6 keeper)    = R1 - R6  = +5    excellent
-      - London (WR8, R4 keeper)    = R2 - R4  = +2    very good
-      - LaPorta (TE6, R7 keeper)   = R6 - R7  = +1 + TE scarcity premium
-      - Dart (QB12, R10 keeper)    = R10 - R10 = 0    fair + multi-year
-      - Adams (WR23, R2 keeper)    = R3.5 - R2 = -1.5 NEGATIVE (TRAP)
-      - Wilson (WR15, R1 keeper)   = R2.5 - R1 = -1.5 NEGATIVE (TRAP)
+    For UNRANKED players (no positional rank because they're not on the
+    league's top-200 board), treat typical round as R15+ / undrafted —
+    they're free in any practical sense.
+
+(2) EQUITY = (keeper round) - (typical draft round).
+    POSITIVE = keeper round number is LATER than the player's typical
+    draft round = you're paying a cheap pick for a premium player = GOOD.
+    NEGATIVE = keeper round number is EARLIER than typical = you're
+    paying an expensive pick for a low-value player = BAD.
+
+    The intuition: lower round numbers are more expensive picks (R1 is
+    the most expensive). So you want your KEEPER round number to be
+    BIGGER than the player's typical draft round number — the bigger
+    the gap, the cheaper you got them.
+
+    Examples (work the arithmetic carefully each time):
+      - Achane (RB5,  keeper R6)   = 6 - 1   = +5    excellent (R1 player at R6 cost)
+      - London (WR8,  keeper R4)   = 4 - 2   = +2    very good
+      - LaPorta (TE6, keeper R7)   = 7 - 6   = +1    fair (+ TE scarcity premium)
+      - Dart (QB12,   keeper R10)  = 10 - 10 = 0     market
+      - Spears (RB46, keeper R6)   = 6 - 11  = -5    OVERPAY (waiver-tier RB at R6 cost)
+      - Wilson (WR15, keeper R1)   = 1 - 2.5 = -1.5  OVERPAY (mid-WR at R1 cost)
+      - Adams (WR23,  keeper R2)   = 2 - 3.5 = -1.5  OVERPAY
+      - Diggs (WR54,  keeper R6)   = 6 - 14  = -8    catastrophic overpay (undrafted-tier)
+
+    CRITICAL: if a player is RB31+ / WR37+ / TE13+ / QB13+ (depth tier),
+    their typical round is R11-R17 or undrafted. Keeping them at R6 is
+    a HUGE negative equity (-5 to -10), NOT positive. Do not confuse
+    "keeper round is earlier than typical" with "good deal" — it's the
+    opposite of good.
 
 (3) MULTI-YEAR LADDER. Apply §2 to find next year's cost.
       R10 → R8 → R7 → R6 ...     long ladder, ascending value
@@ -325,10 +351,26 @@ keeper cost ≤ R10), do this math BEFORE recommending anything:
       - <28                → ascending, multi-year is more valuable
 
 (5) VERDICT for each player: keep / borderline / drop.
-    Keep: equity ≥ +1.5 round, OR (≥ 0 equity AND long multi-year ladder
-          AND ascending trajectory).
-    Drop: equity ≤ 0 AND short ladder (≤1 more year of keepability).
-    Borderline: in between.
+
+    AUTO-DROP rules (apply first, before computing equity-based keep):
+      - Positional rank is in DEPTH tier (RB31+, WR37+, TE13+, QB13+).
+        These are bench / waiver-pool players. The keeper slot is more
+        valuable than the player, regardless of how late they "typically"
+        go. Examples: Spears (RB46), Tracy (RB41), Johnston (WR44),
+        Pearsall (WR39), unranked / undrafted players. ALWAYS drop.
+      - Equity ≤ -1 round (clear overpay).
+      - Player is unranked AND keeper cost is R8 or earlier (you're
+        spending a real pick on someone the market wouldn't draft).
+
+    KEEP rules (after auto-drops are out):
+      - Equity ≥ +1.5 AND positional rank in starter tier
+        (RB1-24, WR1-30, TE1-10, QB1-12). The starter tier is the actual
+        bar — equity alone is not enough if the player isn't startable.
+      - Equity ≥ 0 AND elite tier (RB1-12, WR1-15, TE1-6, QB1-8) AND
+        long multi-year ladder AND ascending trajectory.
+
+    BORDERLINE: starter-tier player with equity in [0, +1.5), or
+    elite-tier player with equity in [-1, 0).
 
 ==================================================================
 NAME-BRAND TRAPS — actively flag and reject
