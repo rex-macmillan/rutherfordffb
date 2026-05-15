@@ -17,6 +17,10 @@ interface AdvisorRequest {
   teamName: string;
   managerName?: string;
   roster: RosterPlayer[];
+  /** All rostered players league-wide — used to compute positional ranks
+      so QB / TE keepers aren't penalized by their deflated overall PPR
+      rank. Optional; if missing, advisor falls back to overall rank only. */
+  leagueWidePool?: RosterPlayer[];
   missingPicks: number[];
   extraPicks: number[];
 }
@@ -88,17 +92,43 @@ const RECOMMEND_TOOL = {
   },
 };
 
-function formatRoster(roster: RosterPlayer[]): string {
+/**
+ * Build a playerId → positional rank map from a league-wide player pool.
+ * QBs are ordered among QBs, RBs among RBs, etc. This is what we use to
+ * normalize value — overall PPR rank deflates QBs and TEs because they
+ * don't catch as many passes, so a QB at overall rank 92 is actually
+ * QB12-ish (a real starter), not a bench scrub.
+ */
+function buildPositionalRanks(pool: RosterPlayer[]): Map<string, number> {
+  const byPos = new Map<string, RosterPlayer[]>();
+  for (const p of pool) {
+    if (p.pprRank == null) continue;
+    if (!byPos.has(p.position)) byPos.set(p.position, []);
+    byPos.get(p.position)!.push(p);
+  }
+  const out = new Map<string, number>();
+  byPos.forEach((arr) => {
+    arr.sort((a, b) => (a.pprRank ?? 9999) - (b.pprRank ?? 9999));
+    arr.forEach((p, idx) => out.set(p.playerId, idx + 1));
+  });
+  return out;
+}
+
+function formatRoster(
+  roster: RosterPlayer[],
+  posRanks: Map<string, number>,
+): string {
   const sorted = [...roster].sort((a, b) => (a.pprRank ?? 9999) - (b.pprRank ?? 9999));
   return sorted
-    .map(
-      (p) =>
-        `- ${p.name} (${p.position}, ${p.teamAbbr}) | PPR rank: ${
-          p.pprRank ?? "—"
-        } | Keeper cost: R${p.keeperRound ?? "—"}${
-          p.prevKeeper ? " [escalated due to consecutive keeps]" : ""
-        } | playerId: ${p.playerId}`,
-    )
+    .map((p) => {
+      const posRank = posRanks.get(p.playerId);
+      const posLabel = posRank ? `${p.position}${posRank}` : p.position;
+      return `- ${p.name} (${posLabel}, ${p.teamAbbr}) | overall PPR: ${
+        p.pprRank ?? "—"
+      } | Keeper cost: R${p.keeperRound ?? "—"}${
+        p.prevKeeper ? " [escalated due to consecutive keeps]" : ""
+      } | playerId: ${p.playerId}`;
+    })
     .join("\n");
 }
 
@@ -122,23 +152,47 @@ export default async function handler(
       .json({ error: "missing_roster", message: "roster is required" });
   }
 
+  // Compute positional ranks from the league-wide pool when available, so
+  // the player labels show QB12 / TE7 etc instead of just position letters.
+  // Falls back to roster-only ranks when the league pool isn't passed.
+  const posRanks = buildPositionalRanks(body.leagueWidePool ?? body.roster);
+
   const userPrompt = `Team: ${body.teamName}${
     body.managerName ? ` (manager: ${body.managerName})` : ""
   }
 
-Current roster (with computed keeper costs already applied):
-${formatRoster(body.roster)}
+Current roster (each player annotated with positional rank — QB12 means he's the 12th-best QB league-wide, NOT his overall position):
+${formatRoster(body.roster, posRanks)}
 
 Draft pick situation for this team:
 - Extra picks gained via trade: ${body.extraPicks.length ? body.extraPicks.map((r) => `R${r}`).join(", ") : "none"}
 - Missing picks (traded away): ${body.missingPicks.length ? body.missingPicks.map((r) => `R${r}`).join(", ") : "none"}
 
+IMPORTANT — how to read the value of each player:
+
+  Overall PPR rank deflates QBs and TEs because they accrue fewer points
+  in PPR scoring. So a QB at overall rank 92 might be QB12 (a real
+  fantasy starter) — at R10 keeper cost that's positive equity, not
+  garbage. Conversely, a WR at overall rank 92 is WR40-ish (deep bench).
+  Use the positional rank annotated next to each player, NOT just the
+  overall rank, when judging value-at-keeper-cost. Especially for QB and
+  TE, where positional scarcity matters more than overall rank.
+
 Recommend which keepers this manager should declare. Account for:
-1. Raw value at the keeper cost (compare PPR rank vs the round they'd cost).
-2. The §6 slide-up rule if any missing picks would force keepers to slide earlier.
-3. The §3 duplicate-round rule if multiple keepers share the same cost.
-4. The entry-fee economics — is the 3rd ($150 → $225) or 4th ($150 → $300) keeper worth the cost?
-5. Consecutive-keep escalation risk for next year.
+1. Value at the keeper cost — compare POSITIONAL rank vs the round they'd cost.
+   A QB12 at R10 is roughly fair-to-positive equity. A QB6 at R8 is great.
+2. Position scarcity — elite TE or QB1 are scarcer than another WR.
+3. The §6 slide-up rule if any missing picks would force keepers to slide.
+4. The §3 duplicate-round rule if multiple keepers share the same cost.
+5. Entry-fee economics — is the 3rd (+$50) or 4th (+$75) keeper worth it?
+   Frame this as "the 4th keeper costs $75 of cash + an Rx pick; is the
+   surplus value of THIS specific Rx player worth that?"
+6. Consecutive-keep escalation for next year — flag anyone whose cost will
+   rise meaningfully if kept twice in a row.
+
+Make sure to evaluate EVERY position group, including QBs and TEs at their
+positional ranks. Do not skip a player just because their overall rank looks
+low — re-read their positional rank first.
 
 Call submit_recommendation with your structured analysis.`;
 

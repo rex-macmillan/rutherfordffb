@@ -57,18 +57,28 @@ export default function AdvisorPage() {
     setError(null);
     setResult(null);
     try {
+      const toPayload = (p: typeof data.rows[number]) => ({
+        playerId: p.playerId,
+        name: p.name,
+        position: p.position,
+        teamAbbr: p.teamAbbr,
+        pprRank: p.pprRank,
+        keeperRound: p.keeperRound,
+        prevKeeper: p.prevKeeper,
+        valueScore: p.valueScore,
+      });
+
       const roster = data.rows
         .filter((p) => p.rosterId === selectedRoster)
-        .map((p) => ({
-          playerId: p.playerId,
-          name: p.name,
-          position: p.position,
-          teamAbbr: p.teamAbbr,
-          pprRank: p.pprRank,
-          keeperRound: p.keeperRound,
-          prevKeeper: p.prevKeeper,
-          valueScore: p.valueScore,
-        }));
+        .map(toPayload);
+
+      // Send the entire league-wide rostered pool too, so the server can
+      // compute positional ranks (QB12, TE7, etc.) and the model judges
+      // value with positional context instead of overall PPR rank alone.
+      const leagueWidePool = data.rows
+        .filter((p) => p.rosterId >= 0 && p.pprRank != null)
+        .map(toPayload);
+
       const delta = data.deltas.get(selectedRoster as number);
 
       const res = await fetch("/api/advisor", {
@@ -78,6 +88,7 @@ export default function AdvisorPage() {
           teamName: team.teamName,
           managerName: username,
           roster,
+          leagueWidePool,
           missingPicks: delta?.missing ?? [],
           extraPicks: delta?.extra ?? [],
         }),
