@@ -39,6 +39,33 @@ interface RequestBody {
   season: string;
 }
 
+// Inlined twice on purpose — Anthropic's tool_use schema doesn't resolve
+// JSON-Schema $ref, so trying to share via `definitions` made the model
+// return empty objects for teamA/teamB.
+const sideAnalysisSchema = {
+  type: "object" as const,
+  properties: {
+    immediateValueDelta: {
+      type: "string",
+      description:
+        "Net value gain/loss for this side based on PPR ranks. Example: '+R32 → -R56 net = -24 ranks'.",
+    },
+    assetsGained: {
+      type: "array",
+      items: { type: "string" },
+    },
+    assetsLost: {
+      type: "array",
+      items: { type: "string" },
+    },
+    fitNote: {
+      type: "string",
+      description: "How well the gained assets fit this side's roster shape.",
+    },
+  },
+  required: ["immediateValueDelta", "assetsGained", "assetsLost", "fitNote"],
+};
+
 const EVAL_TOOL = {
   name: "submit_evaluation",
   description: "Submit a structured analysis of the proposed trade.",
@@ -54,8 +81,8 @@ const EVAL_TOOL = {
         description:
           "Short note on how confident you are and what would shift the verdict.",
       },
-      teamA: { $ref: "#/definitions/sideAnalysis" },
-      teamB: { $ref: "#/definitions/sideAnalysis" },
+      teamA: sideAnalysisSchema,
+      teamB: sideAnalysisSchema,
       keeperEconomics: {
         type: "string",
         description:
@@ -87,31 +114,6 @@ const EVAL_TOOL = {
       "insuranceFee",
       "recommendation",
     ],
-    definitions: {
-      sideAnalysis: {
-        type: "object",
-        properties: {
-          immediateValueDelta: {
-            type: "string",
-            description:
-              "Net value gain/loss for this side based on PPR ranks. Example: '+R32 → -R56 net = -24 ranks'.",
-          },
-          assetsGained: {
-            type: "array",
-            items: { type: "string" },
-          },
-          assetsLost: {
-            type: "array",
-            items: { type: "string" },
-          },
-          fitNote: {
-            type: "string",
-            description: "How well the gained assets fit this side's roster shape.",
-          },
-        },
-        required: ["immediateValueDelta", "assetsGained", "assetsLost", "fitNote"],
-      },
-    },
   },
 };
 

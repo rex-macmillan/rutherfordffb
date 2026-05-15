@@ -255,48 +255,70 @@ export default function TradeEvaluatorPage() {
                 <span
                   className={cn(
                     "rounded-full border px-3 py-1 text-sm font-semibold",
-                    verdictTone[result.verdict],
+                    verdictTone[result.verdict] ??
+                      "bg-ink-100 text-ink-700 border-ink-200",
                   )}
                 >
-                  {verdictLabel[result.verdict]}
+                  {verdictLabel[result.verdict] ?? result.verdict ?? "(no verdict)"}
                 </span>
-                <span className="text-xs text-ink-500">
-                  {result.confidenceNote}
-                </span>
+                {result.confidenceNote && (
+                  <span className="text-xs text-ink-500">{result.confidenceNote}</span>
+                )}
               </div>
-              <p className="mt-3 text-sm text-ink-800">{result.recommendation}</p>
+              {result.recommendation && (
+                <p className="mt-3 text-sm text-ink-800">{result.recommendation}</p>
+              )}
             </CardBody>
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <SideCard label={`Team A: ${teamA?.teamName}`} side={result.teamA} />
-            <SideCard label={`Team B: ${teamB?.teamName}`} side={result.teamB} />
+            {result.teamA && (
+              <SideCard label={`Team A: ${teamA?.teamName}`} side={result.teamA} />
+            )}
+            {result.teamB && (
+              <SideCard label={`Team B: ${teamB?.teamName}`} side={result.teamB} />
+            )}
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Keeper economics (§2)</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="text-sm text-ink-700">{result.keeperEconomics}</p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Pick integrity (§6)</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="text-sm text-ink-700">{result.pickIntegrity}</p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Insurance fee (§6)</CardTitle>
-            </CardHeader>
-            <CardBody>
-              <p className="text-sm text-ink-700">{result.insuranceFee}</p>
-            </CardBody>
-          </Card>
+          {result.keeperEconomics && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Keeper economics (§2)</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <p className="text-sm text-ink-700">{result.keeperEconomics}</p>
+              </CardBody>
+            </Card>
+          )}
+          {result.pickIntegrity && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pick integrity (§6)</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <p className="text-sm text-ink-700">{result.pickIntegrity}</p>
+              </CardBody>
+            </Card>
+          )}
+          {result.insuranceFee && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Insurance fee (§6)</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <p className="text-sm text-ink-700">{result.insuranceFee}</p>
+              </CardBody>
+            </Card>
+          )}
+
+          <details className="text-xs text-ink-500">
+            <summary className="cursor-pointer select-none">
+              Raw response (debug)
+            </summary>
+            <pre className="mt-2 overflow-x-auto rounded bg-ink-100 p-2 text-[0.7rem] text-ink-700">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
         </div>
       )}
     </div>
@@ -417,42 +439,46 @@ function TeamPanel({
   );
 }
 
-function SideCard({ label, side }: { label: string; side: SideAnalysis }) {
+function SideCard({ label, side }: { label: string; side: Partial<SideAnalysis> }) {
+  const gained = side.assetsGained ?? [];
+  const lost = side.assetsLost ?? [];
   return (
     <Card>
       <CardHeader>
         <CardTitle>{label}</CardTitle>
       </CardHeader>
       <CardBody className="space-y-2 text-sm">
-        <div>
-          <span className="font-medium">Value delta: </span>
-          <span className="text-ink-700">{side.immediateValueDelta}</span>
-        </div>
-        {side.assetsGained.length > 0 && (
+        {side.immediateValueDelta && (
+          <div>
+            <span className="font-medium">Value delta: </span>
+            <span className="text-ink-700">{side.immediateValueDelta}</span>
+          </div>
+        )}
+        {gained.length > 0 && (
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-emerald-700">
               Gained
             </div>
             <ul className="list-disc pl-5">
-              {side.assetsGained.map((a, i) => (
+              {gained.map((a, i) => (
                 <li key={i}>{a}</li>
               ))}
             </ul>
           </div>
         )}
-        {side.assetsLost.length > 0 && (
+        {lost.length > 0 && (
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-red-700">
               Lost
             </div>
             <ul className="list-disc pl-5">
-              {side.assetsLost.map((a, i) => (
+              {lost.map((a, i) => (
                 <li key={i}>{a}</li>
               ))}
             </ul>
           </div>
         )}
-        <div className="text-ink-700">{side.fitNote}</div>
+        {side.fitNote && <div className="text-ink-700">{side.fitNote}</div>}
       </CardBody>
     </Card>
   );
