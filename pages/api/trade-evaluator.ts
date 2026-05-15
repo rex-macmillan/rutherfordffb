@@ -226,7 +226,7 @@ Also analyze:
 
   try {
     const response = await anthropic.messages.create({
-      model: MODELS.reasoning,
+      model: MODELS.balanced, // Sonnet 4.6 — Opus 4.7 was returning empty tool calls
       max_tokens: 4096,
       system: systemBlocks(),
       tools: [EVAL_TOOL],
@@ -239,6 +239,10 @@ Also analyze:
       return res.status(502).json({
         error: "no_tool_use",
         message: "Model did not return structured output.",
+        debug: {
+          stop_reason: response.stop_reason,
+          content: response.content,
+        },
       });
     }
 
@@ -265,6 +269,13 @@ Also analyze:
     return res.status(200).json({
       result,
       usage: response.usage,
+      debug: {
+        stop_reason: response.stop_reason,
+        model: response.model,
+        // If result came back empty, the full content array helps diagnose.
+        rawContent:
+          result && Object.keys(result).length === 0 ? response.content : undefined,
+      },
     });
   } catch (e: any) {
     // Surface the underlying Anthropic error so it shows up in the UI debug
