@@ -13,6 +13,7 @@ const links = [
   { href: "/", label: "Keeper Helper", match: (p: string) => p === "/" },
   { href: "/advisor", label: "Advisor", match: (p: string) => p.startsWith("/advisor") },
   { href: "/trade-evaluator", label: "Trade Eval", match: (p: string) => p.startsWith("/trade-evaluator") },
+  { href: "/draft-order", label: "Draft Order", match: (p: string) => p.startsWith("/draft-order") },
   { href: "/draftboard", label: "Draft Board", match: (p: string) => p.startsWith("/draftboard") },
   { href: "/playoffs", label: "Playoffs", match: (p: string) => p.startsWith("/playoffs") },
   { href: "/rules", label: "Rules", match: (p: string) => p.startsWith("/rules") },
