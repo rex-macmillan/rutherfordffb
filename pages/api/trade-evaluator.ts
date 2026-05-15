@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { anthropic, MODELS, notConfiguredResponse } from "../../lib/anthropic";
+import { anthropic, MODELS, notConfiguredResponse, unwrapToolInput } from "../../lib/anthropic";
 import { systemBlocks } from "../../lib/aiPrompts";
 
 interface SidePlayer {
@@ -210,7 +210,7 @@ Analyze step by step, then call submit_evaluation. Pay special attention to:
     }
 
     return res.status(200).json({
-      result: toolUse.input,
+      result: unwrapToolInput(toolUse.input, "verdict"),
       usage: response.usage,
     });
   } catch (e: any) {

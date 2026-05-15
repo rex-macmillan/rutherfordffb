@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { anthropic, MODELS, notConfiguredResponse } from "../../lib/anthropic";
+import { anthropic, MODELS, notConfiguredResponse, unwrapToolInput } from "../../lib/anthropic";
 import { systemBlocks } from "../../lib/aiPrompts";
 
 interface DraftPickInfo {
@@ -104,7 +104,9 @@ Use the rulebook's keeper rules to factor in keeper costs — a R6 keeper of a t
     if (!toolUse || toolUse.type !== "tool_use") {
       return res.status(502).json({ error: "no_tool_use" });
     }
-    return res.status(200).json({ result: toolUse.input, usage: response.usage });
+    return res
+      .status(200)
+      .json({ result: unwrapToolInput(toolUse.input, "headlines"), usage: response.usage });
   } catch (e: any) {
     console.error("draft recap error:", e);
     return res.status(500).json({ error: "anthropic_error", message: e?.message });

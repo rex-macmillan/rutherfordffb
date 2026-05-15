@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { anthropic, MODELS, notConfiguredResponse } from "../../lib/anthropic";
+import { anthropic, MODELS, notConfiguredResponse, unwrapToolInput } from "../../lib/anthropic";
 import { systemBlocks } from "../../lib/aiPrompts";
 
 interface RosterPlayer {
@@ -161,7 +161,7 @@ Call submit_recommendation with your structured analysis.`;
     }
 
     return res.status(200).json({
-      result: toolUse.input,
+      result: unwrapToolInput(toolUse.input, "recommendedKeepers"),
       usage: response.usage,
     });
   } catch (e: any) {

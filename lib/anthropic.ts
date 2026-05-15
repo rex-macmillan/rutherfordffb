@@ -37,6 +37,38 @@ export const MODELS = {
  * Standard error response shape for API routes. Use 503 for "not configured"
  * so the client can distinguish a setup problem from a real failure.
  */
+/**
+ * Defensive unwrap for tool_use.input.
+ *
+ * Even though our schemas declare top-level properties (no wrapper), the
+ * model sometimes adds a semantic wrapper that mirrors the tool name —
+ * e.g. tool `submit_evaluation` gets called with
+ *   { evaluation: { verdict, teamA, ... } }
+ * instead of
+ *   { verdict, teamA, ... }
+ *
+ * If we find exactly one top-level object key and the expected field is
+ * underneath it, unwrap. Otherwise return the input unchanged.
+ */
+export function unwrapToolInput<T extends Record<string, any>>(
+  input: any,
+  expectedKey: keyof T,
+): T {
+  if (input && typeof input === "object") {
+    if (expectedKey in input) return input as T;
+    const keys = Object.keys(input);
+    if (
+      keys.length === 1 &&
+      input[keys[0]] &&
+      typeof input[keys[0]] === "object" &&
+      expectedKey in input[keys[0]]
+    ) {
+      return input[keys[0]] as T;
+    }
+  }
+  return input as T;
+}
+
 export function notConfiguredResponse() {
   return {
     status: 503 as const,
