@@ -47,7 +47,7 @@ const KEEPER_ITEM = {
     equityRounds: {
       type: "number",
       description:
-        "Signed number: (keeper round) - (typical draft round). POSITIVE means keeper round number is LATER than typical draft round = you're paying a cheap pick for a premium player = good. NEGATIVE means keeper round is EARLIER than typical = paying an expensive pick for a low-value player = overpay. Examples: Achane R6 keeper / R1 typical = +5. Spears R6 keeper / R11 typical = -5 (BAD, paying R6 for waiver-tier RB). LaPorta R7 keeper / R6 typical = +1. Wilson R1 keeper / R2.5 typical = -1.5.",
+        "PURE ARITHMETIC: keeperRound minus typicalDraftRound (use the midpoint if typicalDraftRound is a range). Do NOT inject qualitative judgment into this number — that's what the verdict field is for. A depth-tier player kept very late might still have positive raw equity (e.g. RB30 / R11 keeper / R7 typical = +4, not -4). The verdict can still be 'drop' for that player even though equity is positive. Examples: keeperR6/typicalR1 = +5. keeperR6/typicalR11 = -5. keeperR11/typicalR7 = +4. keeperR1/typicalR2.5 = -1.5. Server will re-compute this from your keeperRound + typicalDraftRound, so consistency matters more than 'feel'.",
     },
     multiYearOutlook: {
       type: "string",
@@ -178,6 +178,45 @@ function buildPositionalRanks(pool: RosterPlayer[]): Map<string, number> {
     arr.forEach((p, idx) => out.set(p.playerId, idx + 1));
   });
   return out;
+}
+
+/**
+ * Parse the model's free-form typical-draft-round string into a numeric
+ * round so we can do consistent arithmetic on it server-side.
+ *
+ * Examples we need to handle:
+ *   "R7"            → 7
+ *   "R3-R4"         → 3.5  (midpoint of a range)
+ *   "R11+"          → 12   (just past the bucket boundary)
+ *   "R14+ or undrafted" → 15
+ *   "Undrafted"     → 17   (treat as deep-bench / waiver)
+ */
+function parseTypicalRound(s: string | undefined | null): number | null {
+  if (!s) return null;
+  const lower = s.toLowerCase();
+  if (/undrafted/.test(lower) && !/r?\d/.test(lower)) return 17;
+  const range = lower.match(/r?(\d+)\s*[-–to]+\s*r?(\d+)/);
+  if (range) return (parseInt(range[1]) + parseInt(range[2])) / 2;
+  const plus = lower.match(/r?(\d+)\s*\+/);
+  if (plus) return parseInt(plus[1]) + 1;
+  const single = lower.match(/r?(\d+)/);
+  if (single) return parseInt(single[1]);
+  return null;
+}
+
+/**
+ * Mutates each entry in `arr` to set equityRounds = keeperRound - typical,
+ * where typical is parsed from typicalDraftRound. Leaves equity untouched
+ * when either input is missing.
+ */
+function normalizeEquityArr(arr: any[] | undefined) {
+  if (!Array.isArray(arr)) return;
+  for (const p of arr) {
+    if (typeof p?.keeperRound !== "number") continue;
+    const typical = parseTypicalRound(p?.typicalDraftRound);
+    if (typical == null) continue;
+    p.equityRounds = +(p.keeperRound - typical).toFixed(2);
+  }
 }
 
 function formatRoster(
@@ -449,10 +488,17 @@ CRITICAL OUTPUT RULES:
 
     const result: any = unwrapToolInput(toolUse.input, "recommendedKeepers");
 
+    // Normalize equityRounds server-side. The model sometimes does
+    // qualitative reasoning on the equity number (e.g. assigning negative
+    // equity to a depth-tier player even when keeper > typical). We trust
+    // the model to emit `keeperRound` and the typicalDraftRound string,
+    // but compute the arithmetic ourselves so the number is always
+    // (keeper - typical) and never contradicts itself.
+    normalizeEquityArr(result?.perPlayerAnalysis);
+    normalizeEquityArr(result?.recommendedKeepers);
+
     // Enforce non-overlap: a playerId in recommendedKeepers cannot also be
-    // in alternatives. Recommended is the source of truth — strip dupes
-    // from alternatives. This catches the model's "honorable mention but
-    // also recommended" slip-up.
+    // in alternatives.
     if (Array.isArray(result?.recommendedKeepers) && Array.isArray(result?.alternatives)) {
       const recIds = new Set<string>(
         result.recommendedKeepers.map((k: any) => k.playerId),
