@@ -228,7 +228,6 @@ Also analyze:
     const response = await anthropic.messages.create({
       model: MODELS.reasoning,
       max_tokens: 4096,
-      temperature: 0, // deterministic for this critical reasoning task
       system: systemBlocks(),
       tools: [EVAL_TOOL],
       // tool_choice: 'any' lets the model think out loud first, then commit
