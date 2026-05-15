@@ -43,7 +43,7 @@ export function notConfiguredResponse() {
     body: {
       error: "ai_not_configured",
       message:
-        "AI features require ANTHROPIC_API_KEY in .env.local. See CLAUDE.md.",
+        "AI features require ANTHROPIC_API_KEY env var. Locally: set it in .env.local. On Vercel: add it under Settings → Environment Variables and redeploy.",
     },
   };
 }
