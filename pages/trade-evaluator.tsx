@@ -14,8 +14,13 @@ interface SideAnalysis {
   fitNote: string;
 }
 
+type Verdict =
+  | "roughly_fair"
+  | "team_a_got_more_value"
+  | "team_b_got_more_value";
+
 interface Evaluation {
-  verdict: "fair" | "team_a_wins" | "team_b_wins";
+  verdict: Verdict;
   confidenceNote: string;
   teamA: SideAnalysis;
   teamB: SideAnalysis;
@@ -25,16 +30,16 @@ interface Evaluation {
   recommendation: string;
 }
 
-const verdictLabel: Record<Evaluation["verdict"], string> = {
-  fair: "Fair trade",
-  team_a_wins: "Team A wins",
-  team_b_wins: "Team B wins",
+const verdictLabel: Record<Verdict, string> = {
+  roughly_fair: "Roughly fair",
+  team_a_got_more_value: "Team A got more value",
+  team_b_got_more_value: "Team B got more value",
 };
 
-const verdictTone: Record<Evaluation["verdict"], string> = {
-  fair: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  team_a_wins: "bg-amber-50 text-amber-800 border-amber-200",
-  team_b_wins: "bg-amber-50 text-amber-800 border-amber-200",
+const verdictTone: Record<Verdict, string> = {
+  roughly_fair: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  team_a_got_more_value: "bg-amber-50 text-amber-800 border-amber-200",
+  team_b_got_more_value: "bg-amber-50 text-amber-800 border-amber-200",
 };
 
 export default function TradeEvaluatorPage() {

@@ -71,39 +71,21 @@ const EVAL_TOOL = {
   description: "Submit a structured analysis of the proposed trade.",
   input_schema: {
     type: "object" as const,
+    // Field order matters: the model fills tool input top-to-bottom, so the
+    // analysis fields come FIRST and the verdict is dead last. This forces
+    // the model to do the full analysis before committing to who won.
     properties: {
-      // IMPORTANT: This field must be filled BEFORE the verdict. It forces
-      // an explicit answer to the question "which side received more value"
-      // so the verdict can't drift to the wrong team via single-shot
-      // tool-call error.
-      valueWinner: {
-        type: "string",
-        enum: ["a", "b", "neither"],
-        description:
-          "Which side ended up with MORE NET VALUE after accounting for keeper cost economics. 'a' = Team A received more value (Team B gave more away). 'b' = Team B received more value. 'neither' = within ~10% of each other. This MUST match the verdict (a → team_a_wins, b → team_b_wins, neither → fair).",
-      },
-      verdict: {
-        type: "string",
-        enum: ["fair", "team_a_wins", "team_b_wins"],
-        description:
-          "Derived from valueWinner. Use team_a_wins iff valueWinner === 'a'.",
-      },
-      confidenceNote: {
-        type: "string",
-        description:
-          "Short note on how confident you are and what would shift the verdict.",
-      },
       teamA: sideAnalysisSchema,
       teamB: sideAnalysisSchema,
       keeperEconomics: {
         type: "string",
         description:
-          "Explanation of how keeper costs change for each side after this trade. Mention the §2 escalation rule if any acquired player has been kept before. Mention if a side is acquiring a keeper-eligible bargain.",
+          "Explanation of how keeper costs change for each side after this trade. Mention §2 escalation if any acquired player has been kept before. Identify if a side is acquiring a keeper-cost bargain.",
       },
       pickIntegrity: {
         type: "string",
         description:
-          "Per §6: does either side now have a keeper whose natural round was traded away? Will their keeper slide up? Concrete: 'Team A keeps Olave (R4) but traded their R4 — Olave slides to their R3, displacing X if applicable.'",
+          "Per §6: does either side now have a keeper whose natural round was traded away? Will their keeper slide up? Be concrete: 'Team A keeps Olave (R4) but traded their R4 — Olave slides to their R3.'",
       },
       insuranceFee: {
         type: "string",
@@ -113,19 +95,36 @@ const EVAL_TOOL = {
       recommendation: {
         type: "string",
         description:
-          "2-4 sentence final recommendation in plain language.",
+          "2-4 sentence final recommendation in plain language. End with a statement of WHICH TEAM benefits more from this trade based on the analysis above.",
+      },
+      confidenceNote: {
+        type: "string",
+        description:
+          "Short note on how confident you are and what would shift the verdict.",
+      },
+      // The verdict is the LAST field. Re-read everything above before
+      // picking a value. The enum names are written to be literal answers to
+      // the question \"who got more net value?\" so there is no ambiguity.
+      verdict: {
+        type: "string",
+        enum: [
+          "team_a_got_more_value",
+          "team_b_got_more_value",
+          "roughly_fair",
+        ],
+        description:
+          "Final verdict. After reading your own analysis above (especially the recommendation field), pick the team that RECEIVED more net value (after accounting for keeper-cost economics). The side that GAVE UP the better asset is the loser. If the recommendation field said 'Team X is the clear winner' or similar, this verdict MUST be team_x_got_more_value.",
       },
     },
     required: [
-      "valueWinner",
-      "verdict",
-      "confidenceNote",
       "teamA",
       "teamB",
       "keeperEconomics",
       "pickIntegrity",
       "insuranceFee",
       "recommendation",
+      "confidenceNote",
+      "verdict",
     ],
   },
 };
@@ -198,31 +197,35 @@ ${formatSide(body.teamB, "B")}
 Proposed trade:
 ${describeTrade(body)}
 
-Reason step by step BEFORE calling submit_evaluation:
+Fill the submit_evaluation tool's fields IN ORDER, top to bottom. Do the analysis BEFORE you fill the verdict (the verdict is the last field on purpose).
 
-STEP 1 — Inventory direction.
-List exactly what each team RECEIVES (not what they had before). Be explicit:
-  "Team A receives: <players + picks from Team B>"
-  "Team B receives: <players + picks from Team A>"
+The key reasoning principle for THIS league:
 
-STEP 2 — Rank the assets.
-For each player moving in this trade, write one line:
-  "<player> (PPR rank N, keeper cost RX) — keeper value: <how mispriced vs rank>"
-A 6th-round keeper at PPR rank 11 (e.g. Achane R6) is one of the most valuable assets in the league. A 1st-round keeper at PPR rank 9 (e.g. Jeanty R1) is good but expensive. The cost-adjusted analysis often inverts raw rank.
+  Raw PPR rank is only half the story. Keeper-cost economics often invert
+  the rank-based winner. A R6 keeper at PPR rank 11 is one of the most
+  valuable assets in the league — near-free elite production. A R1 keeper
+  at PPR rank 9 is good but pays maximum cost every year. When two players
+  of similar rank are exchanged at very different keeper costs, the side
+  receiving the cheaper-keeper player almost always wins on cost-adjusted
+  value.
 
-STEP 3 — Sum value per side.
-Add up the keeper-cost-adjusted value of what EACH SIDE RECEIVED. The side that received the most total cost-adjusted value is the winner.
+Critical direction check (this is where models routinely flip the answer):
 
-STEP 4 — Sanity check.
-Re-read STEP 1. The valueWinner you're about to submit MUST be the side that RECEIVED more, NOT the side that GAVE more. Common error: confusing "X gave up the more valuable asset" (which means X LOSES) with "X wins". If X gave up the more valuable asset, the OTHER side wins.
+  - Team A SENDS: ${body.trade.aSendsPlayers.length || body.trade.aSendsPicks.length ? "(see proposed trade above)" : "(nothing)"}
+  - Team A RECEIVES: ${body.trade.bSendsPlayers.length || body.trade.bSendsPicks.length ? "(see proposed trade above)" : "(nothing)"}
+  - Same for Team B in reverse.
 
-STEP 5 — Fill the tool.
-Set valueWinner first ('a' if Team A received more value, 'b' if Team B received more value, 'neither' for within ~10%). Then set verdict to match (a→team_a_wins, b→team_b_wins, neither→fair). These two fields MUST be consistent.
+  When you fill teamA.assetsGained, that's what Team A RECEIVES.
+  When you fill teamA.assetsLost, that's what Team A GAVE UP.
+  Team A "wins" only if what they RECEIVE is more valuable than what they GAVE.
+  Team A does NOT win if they gave up the more valuable asset.
+
+When you reach the recommendation field, state which team benefits more in plain language. When you reach the verdict field (last), pick the enum that matches what you wrote in recommendation. If recommendation says "Team B is the winner", verdict MUST be team_b_got_more_value.
 
 Also analyze:
-- Whether either side ends up with a keeper that needs to slide per §6 (a keeper whose natural round is now missing).
-- Whether the §3 duplicate-round rule will force a sliding chain on either side.
-- Whether the trade triggers the 50% insurance fee per §6 (only the FIRST outgoing pick of the season triggers it).`;
+- §6 slide-up: does either side now have a keeper whose natural round is missing?
+- §3 duplicate-round chain on either side after the trade.
+- §6 insurance fee: only the FIRST outgoing pick of the season triggers it.`;
 
   try {
     const response = await anthropic.messages.create({
@@ -248,22 +251,27 @@ Also analyze:
 
     const result: any = unwrapToolInput(toolUse.input, "verdict");
 
-    // Enforce consistency: valueWinner is the source of truth, verdict
-    // derives from it. If the model produced a mismatch, fix it server-side
-    // so the UI never shows a contradictory pill.
-    const derived: Record<string, string> = {
-      a: "team_a_wins",
-      b: "team_b_wins",
-      neither: "fair",
-    };
-    if (result?.valueWinner && derived[result.valueWinner]) {
-      const expected = derived[result.valueWinner];
-      if (result.verdict !== expected) {
-        result.verdict = expected;
-        result.confidenceNote =
-          (result.confidenceNote ? `${result.confidenceNote} ` : "") +
-          `(verdict normalized from model output to match valueWinner=${result.valueWinner})`;
-      }
+    // Text-based sanity check: if the recommendation field clearly declares
+    // a winner that contradicts the verdict enum, flip the verdict. The
+    // recommendation is the model's final natural-language conclusion, so
+    // when it disagrees with the verdict pill, the recommendation is more
+    // reliable. (This catches the model's self-inversion bug.)
+    const rec: string = (result?.recommendation ?? "").toLowerCase();
+    const v: string = result?.verdict ?? "";
+    const recSaysA =
+      /(team a|team\s*a)[^.]{0,80}(winner|wins|benefits more|comes out ahead)/.test(rec);
+    const recSaysB =
+      /(team b|team\s*b)[^.]{0,80}(winner|wins|benefits more|comes out ahead)/.test(rec);
+    if (recSaysA && v !== "team_a_got_more_value") {
+      result.verdict = "team_a_got_more_value";
+      result.confidenceNote =
+        (result.confidenceNote ? `${result.confidenceNote} ` : "") +
+        "(verdict normalized: recommendation declared Team A the winner)";
+    } else if (recSaysB && v !== "team_b_got_more_value") {
+      result.verdict = "team_b_got_more_value";
+      result.confidenceNote =
+        (result.confidenceNote ? `${result.confidenceNote} ` : "") +
+        "(verdict normalized: recommendation declared Team B the winner)";
     }
 
     return res.status(200).json({
