@@ -1,51 +1,46 @@
-body { margin: 0; font-family: system-ui, sans-serif; background: #f8fafc; }
-html { font-size: 14px; }
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
-/* Markdown styling */
-.markdown-body {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-  line-height: 1.6;
-  color: #111;
+@theme {
+  /* Brand palette + small token set. */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-900: #1e3a8a;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+
+  /* Position tints (used in PlayerTable rows). */
+  --color-pos-qb: #fff9db;
+  --color-pos-rb: #e7fff4;
+  --color-pos-wr: #ffe8e8;
+  --color-pos-te: #f4e8ff;
 }
 
-.markdown-body table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
+html,
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-.markdown-body th,
-.markdown-body td {
-  border: 1px solid #dfe2e5;
-  padding: 0.5em 0.75em;
-}
+/* Position-tinted rows. Tailwind utilities + arbitrary values work, but a
+   handful of repeated combos read cleaner as named classes. */
+.row-pos-QB { background-color: var(--color-pos-qb); }
+.row-pos-RB { background-color: var(--color-pos-rb); }
+.row-pos-WR { background-color: var(--color-pos-wr); }
+.row-pos-TE { background-color: var(--color-pos-te); }
 
-.markdown-body th {
-  background-color: #f2f2f2;
-  text-align: left;
-}
-
-.markdown-body tr:nth-child(even) {
-  background-color: #fafbfc;
-}
-
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3 {
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-  font-weight: 600;
-}
-
-.markdown-body ul,
-.markdown-body ol {
-  padding-left: 1.5rem;
-}
-
-.markdown-body code {
-  background: #f6f8fa;
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  font-size: 0.9em;
-  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
-} 
+/* Hide horizontal scrollbar on overflow tables but keep scrolling. */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

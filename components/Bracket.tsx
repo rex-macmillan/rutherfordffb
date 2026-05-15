@@ -1,5 +1,5 @@
 import React from "react";
-import styles from "./Bracket.module.css";
+import { cn } from "../lib/cn";
 
 interface Entry {
   round: number;
@@ -20,7 +20,6 @@ interface Props {
 }
 
 const Bracket: React.FC<Props> = ({ entries, rosterIdToName, isLosers = false }) => {
-  // group by round
   const roundsMap: Record<number, Entry[]> = {};
   entries.forEach((e) => {
     if (!roundsMap[e.round]) roundsMap[e.round] = [];
@@ -45,52 +44,61 @@ const Bracket: React.FC<Props> = ({ entries, rosterIdToName, isLosers = false })
       const place = idx * 2 + 1;
       return `${place}th Place`;
     }
-    // placement labels in rounds after the finals (e.g., consolation)
     if (round > finalsRound) {
       const place = (idx + 1) * 2 + 1;
       return isLosers ? `${12 - place}th Place` : `${place}th Place`;
     }
-
-    // Special middle-round placement games (e.g., 5th or 8th place)
     if (round === finalsRound - 1) {
-      if (!isLosers) {
-        // winners bracket: assume last matchup in this round is 5th-place game
-        const isLast = idx === (roundsMap[round].length - 1);
-        if (isLast) return "5th Place";
-      } else {
-        // losers bracket: assume last matchup in this round decides 8th place
-        const isLast = idx === (roundsMap[round].length - 1);
-        if (isLast) return "8th Place";
-      }
+      const isLast = idx === (roundsMap[round].length - 1);
+      if (isLast) return isLosers ? "8th Place" : "5th Place";
     }
     return null;
   };
 
   const renderTeam = (rid: number | null, isWinner: boolean, seed?: number | null, score?: number | null) => {
-    if (rid == null) return <span className={styles.vs}>BYE</span>;
+    if (rid == null)
+      return <span className="text-xs text-ink-400">BYE</span>;
     const name = rosterIdToName[rid] || `Team ${rid}`;
     return (
-      <div className={styles.team} style={{ fontWeight: isWinner ? 600 : 400 }}>
-        <span>
-          {seed != null && <span style={{ color: "#94a3b8" }}>#{seed} </span>}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 py-0.5",
+          isWinner ? "font-semibold text-white" : "text-ink-300",
+        )}
+      >
+        <span className="truncate">
+          {seed != null && <span className="text-ink-500">#{seed} </span>}
           {name}
         </span>
-        {score != null && <span style={{ marginLeft: "0.5rem" }}>{score.toFixed(2)}</span>}
+        {score != null && (
+          <span className="shrink-0 tabular-nums text-ink-200">{score.toFixed(2)}</span>
+        )}
       </div>
     );
   };
 
   return (
-    <div className={styles.bracket}>
+    <div className="flex gap-6 overflow-x-auto pb-4 md:gap-8">
       {roundNums.map((r) => (
-        <div key={r} className={styles.column}>
-          <h4 style={{ textAlign: "center" }}>Round {r}</h4>
+        <div key={r} className="flex shrink-0 flex-col gap-6">
+          <h4 className="text-center text-xs font-semibold uppercase tracking-wide text-ink-500">
+            Round {r}
+          </h4>
           {roundsMap[r].map((m, idx) => (
-            <div key={m.matchup_id} className={styles.match}>
-              {labelForMatch(r, idx) && <div className={styles.header}>{labelForMatch(r, idx)}</div>}
-              {renderTeam(m.t1, m.winner === m.t1, (m as any).seed1 ?? (m as any).t1_seed ?? null, m.score1 ?? (m as any).p1 ?? null)}
-              <div className={styles.vs}>vs</div>
-              {renderTeam(m.t2, m.winner === m.t2, (m as any).seed2 ?? (m as any).t2_seed ?? null, m.score2 ?? (m as any).p2 ?? null)}
+            <div
+              key={m.matchup_id}
+              className="min-w-[200px] rounded-lg bg-ink-800 px-3 py-2 text-sm text-ink-100 shadow-md"
+            >
+              {labelForMatch(r, idx) && (
+                <div className="mb-1 text-center text-xs font-medium text-amber-300">
+                  {labelForMatch(r, idx)}
+                </div>
+              )}
+              {renderTeam(m.t1, m.winner === m.t1, m.seed1, m.score1)}
+              <div className="text-center text-[0.65rem] uppercase tracking-widest text-ink-500">
+                vs
+              </div>
+              {renderTeam(m.t2, m.winner === m.t2, m.seed2, m.score2)}
             </div>
           ))}
         </div>
@@ -99,4 +107,4 @@ const Bracket: React.FC<Props> = ({ entries, rosterIdToName, isLosers = false })
   );
 };
 
-export default Bracket; 
+export default Bracket;
