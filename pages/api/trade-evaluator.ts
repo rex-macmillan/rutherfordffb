@@ -230,9 +230,7 @@ Also analyze:
       max_tokens: 4096,
       system: systemBlocks(),
       tools: [EVAL_TOOL],
-      // tool_choice: 'any' lets the model think out loud first, then commit
-      // to the tool when ready — instead of single-shot tool emission.
-      tool_choice: { type: "any" },
+      tool_choice: { type: "tool", name: "submit_evaluation" },
       messages: [{ role: "user", content: userPrompt }],
     });
 
@@ -269,9 +267,19 @@ Also analyze:
       usage: response.usage,
     });
   } catch (e: any) {
-    console.error("trade evaluator error:", e);
-    return res
-      .status(500)
-      .json({ error: "anthropic_error", message: e?.message ?? "Unknown error" });
+    // Surface the underlying Anthropic error so it shows up in the UI debug
+    // panel and in Vercel logs.
+    const detail = {
+      message: e?.message ?? "Unknown error",
+      status: e?.status,
+      type: e?.error?.type ?? e?.name,
+      anthropic_error: e?.error?.error?.message ?? e?.error?.message,
+    };
+    console.error("trade evaluator error:", detail, e);
+    return res.status(500).json({
+      error: "anthropic_error",
+      message: detail.anthropic_error ?? detail.message,
+      detail,
+    });
   }
 }
