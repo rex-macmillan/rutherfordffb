@@ -13,6 +13,7 @@ interface PlayerRowData {
   draftRank: number;
   keeperRound: number | null;
   pprRank: number | null;
+  posRank?: number | null;
   adjustedRound?: number | null;
   prevKeeper?: boolean;
   starReason?: string;
@@ -196,7 +197,14 @@ const PlayerTable: React.FC<Props> = ({
                 <td className="px-3 py-2 text-ink-500">{p.pprRank ?? "-"}</td>
                 <td className="px-3 py-2 font-medium text-ink-900">{p.name}</td>
                 <td className="px-3 py-2 text-ink-500">{p.teamAbbr}</td>
-                <td className="px-3 py-2 text-ink-700">{p.position}</td>
+                <td className="px-3 py-2 text-ink-700">
+                  {p.position}
+                  {p.posRank != null && (
+                    <span className="ml-1 text-xs text-ink-400 tabular-nums">
+                      {p.posRank}
+                    </span>
+                  )}
+                </td>
                 {showDraftDetails && <td className="px-3 py-2 text-ink-700">{p.previousTeam}</td>}
                 {showDraftDetails && (
                   <td className="px-3 py-2 text-ink-700">

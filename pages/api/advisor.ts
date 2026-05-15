@@ -184,16 +184,24 @@ function formatRoster(
   roster: RosterPlayer[],
   posRanks: Map<string, number>,
 ): string {
-  const sorted = [...roster].sort((a, b) => (a.pprRank ?? 9999) - (b.pprRank ?? 9999));
+  // Sort by precomputed value score (descending) so the top candidates appear
+  // first. Players without a score fall to the bottom.
+  const sorted = [...roster].sort((a, b) => {
+    const av = a.valueScore ?? -Infinity;
+    const bv = b.valueScore ?? -Infinity;
+    return bv - av;
+  });
   return sorted
     .map((p) => {
       const posRank = posRanks.get(p.playerId);
       const posLabel = posRank ? `${p.position}${posRank}` : p.position;
-      return `- ${p.name} (${posLabel}, ${p.teamAbbr}) | overall PPR: ${
+      const score =
+        p.valueScore != null ? `value ${p.valueScore.toFixed(2)}` : "value —";
+      return `- ${p.name} (${posLabel}, ${p.teamAbbr}) | overall PPR ${
         p.pprRank ?? "—"
-      } | Keeper cost: R${p.keeperRound ?? "—"}${
-        p.prevKeeper ? " [escalated due to consecutive keeps]" : ""
-      } | playerId: ${p.playerId}`;
+      } | keeper R${p.keeperRound ?? "—"} | ${score}${
+        p.prevKeeper ? " [escalated by consecutive keeps]" : ""
+      } | id: ${p.playerId}`;
     })
     .join("\n");
 }
@@ -223,11 +231,43 @@ export default async function handler(
   // Falls back to roster-only ranks when the league pool isn't passed.
   const posRanks = buildPositionalRanks(body.leagueWidePool ?? body.roster);
 
-  const userPrompt = `Team: ${body.teamName}${
+  const userPrompt = `==================================================================
+LEAGUE CONFIG (always relevant)
+==================================================================
+
+  - 12-team league, 1 starting QB, PPR scoring, snake draft, 17 rounds.
+  - Max 4 keepers per team (managers may declare 0-4).
+  - Entry fee scales with keeper count: $150 base / $175 (2 keepers) /
+    $225 (3 keepers) / $300 (4 keepers).
+  - §2 round mapping (drafted_last_year → keeper_cost_this_year):
+      R1→R1, R2→R1, R3→R2, R4→R3, R5→R4, R6→R5, R7→R6, R8→R6, R9→R7,
+      R10→R8, R11→R9, R12→R10, R13-R14→R10, R15-R17→R11, undrafted→R6.
+  - §3 (duplicate-round tie-break): if two of YOUR keepers share the
+    same round cost, the second one slides to the NEXT round (later).
+  - §6 (slide-up for missing picks): if you traded away the round your
+    keeper would naturally occupy, the keeper slides EARLIER first
+    (your next-earlier owned round), then later as a fallback.
+  - Once you keep a player, their NEXT-YEAR cost re-applies §2 to this
+    year's cost (R6 keeper → R5 next year → R4 → R3 → …). Effectively
+    a multi-year ladder.
+
+==================================================================
+TEAM
+==================================================================
+
+Team: ${body.teamName}${
     body.managerName ? ` (manager: ${body.managerName})` : ""
   }
 
-Current roster (each player annotated with POSITIONAL rank — QB12 means he's the 12th-best QB league-wide, NOT his overall PPR rank):
+Current roster, sorted by precomputed value score (DESCENDING). Annotation key:
+  - "QB12" / "RB5" / "TE7" — POSITIONAL rank in this league pool (NOT overall PPR rank).
+  - "value X.XX" — server-computed value score = (equity + scarcity_bonus) * tier_weight.
+    Strongly positive (≥ +1.5) = likely keep. Near zero = borderline.
+    Strongly negative (≤ -0.5) = likely drop (overpaying for the keeper slot).
+  - Use this score as a strong PRIOR, not the final answer — your own
+    framework analysis can override it (e.g. for trajectory/injury reasons),
+    but you must JUSTIFY any deviation explicitly.
+
 ${formatRoster(body.roster, posRanks)}
 
 Draft pick situation for this team:
@@ -322,17 +362,30 @@ DELIVERABLE
 Fill the tool fields in order (the schema declares them in the order you
 should reason):
 
-  1. perPlayerAnalysis: do the math for every viable candidate (typical
-     draft round, equity, multi-year, age/trajectory, verdict).
-  2. recommendedKeepers: ordered list of verdict='keep' entries.
+  1. perPlayerAnalysis: ANALYZE EVERY player on the roster who has a keeper
+     cost listed (do not skip anyone — even depth players sometimes turn up
+     as the right 4th keeper). Fill typical draft round, equity, multi-year,
+     age/trajectory, and verdict for each.
+  2. recommendedKeepers: ordered list of verdict='keep' entries. MUST be a
+     subset of perPlayerAnalysis. Maximum 4.
   3. alternatives: verdict='borderline' entries with what would tip them.
+     STRICT RULE: a playerId in alternatives MUST NOT also appear in
+     recommendedKeepers. They are mutually exclusive — a player is either
+     a recommended keeper OR a borderline alternative, never both.
   4. keeperCountAdvice: dollar+pick math for going from 3 → 4 keepers.
   5. trapsAvoided: name the specific name-brand traps you rejected.
   6. keyConsiderations + riskAssessment.
 
-Be willing to recommend 2 or 3 keepers if the 4th-best option is genuinely
-negative equity. Avoid filling 4 slots out of completeness — recommend the
-math, not the slot count.`;
+CRITICAL OUTPUT RULES:
+  - recommendedKeepers and alternatives have ZERO overlap (no playerId
+    appears in both arrays).
+  - Be willing to recommend 2 or 3 keepers if the 4th-best option is
+    genuinely negative equity. Don't fill 4 slots out of completeness.
+  - Use the precomputed value scores as a prior. If you deviate from the
+    value-score ranking, explicitly justify why in the player's rationale
+    (e.g. "value score higher but he's 32 and on a new team — discounted").
+  - Consider the WHOLE roster, not just the famous names. The 4th-best
+    keeper is often someone whose name you don't recognize.`;
 
   try {
     const response = await anthropic.messages.create({
@@ -352,8 +405,23 @@ math, not the slot count.`;
       });
     }
 
+    const result: any = unwrapToolInput(toolUse.input, "recommendedKeepers");
+
+    // Enforce non-overlap: a playerId in recommendedKeepers cannot also be
+    // in alternatives. Recommended is the source of truth — strip dupes
+    // from alternatives. This catches the model's "honorable mention but
+    // also recommended" slip-up.
+    if (Array.isArray(result?.recommendedKeepers) && Array.isArray(result?.alternatives)) {
+      const recIds = new Set<string>(
+        result.recommendedKeepers.map((k: any) => k.playerId),
+      );
+      result.alternatives = result.alternatives.filter(
+        (a: any) => !recIds.has(a.playerId),
+      );
+    }
+
     return res.status(200).json({
-      result: unwrapToolInput(toolUse.input, "recommendedKeepers"),
+      result,
       usage: response.usage,
     });
   } catch (e: any) {

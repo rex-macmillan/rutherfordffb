@@ -36,6 +36,8 @@ export interface PlayerRow {
   starReason?: string;
   rosterId: number;
   pprRank: number | null;
+  /** Position-specific rank within the league pool, e.g. RB5 / TE7 / QB12. */
+  posRank?: number | null;
   valueScore?: number | null;
 }
 
@@ -86,19 +88,132 @@ function playerName(meta: SleeperPlayer | undefined, fallbackId: string) {
 }
 
 /**
- * Value heuristic combining FantasyCalc rank with keeper round cost. Mirrors
- * the original (rex-owned) formula from pages/index.tsx so the public-facing
- * "value" number doesn't change unexpectedly.
+ * Approximate typical draft round given a player's positional rank.
+ *
+ * Anchored to ADP heuristics in a 12-team 1QB PPR snake draft. Each row is
+ * [maxPositionalRank, typicalRound]. First matching row wins.
+ */
+const MARKET_ROUND_TABLE: Record<string, Array<[number, number]>> = {
+  RB: [
+    [6, 1],
+    [12, 2],
+    [20, 4],
+    [30, 8],
+    [42, 11],
+    [60, 14],
+  ],
+  WR: [
+    [8, 1.5],
+    [15, 2.5],
+    [24, 4],
+    [36, 7],
+    [48, 11],
+    [70, 14],
+  ],
+  TE: [
+    [3, 3.5],
+    [6, 5],
+    [10, 7],
+    [15, 10],
+    [20, 14],
+  ],
+  QB: [
+    [6, 6],
+    [12, 10],
+    [18, 13],
+    [24, 15],
+  ],
+};
+
+/**
+ * Bonus rounds added to equity for players at scarce positions. Captures the
+ * fact that TE and QB starters are much harder to find than RB/WR depth.
+ */
+const SCARCITY_BONUS: Record<string, Array<[number, number]>> = {
+  TE: [
+    [3, 3],
+    [6, 2],
+    [10, 1.5],
+    [14, 1],
+  ],
+  QB: [
+    [6, 1.5],
+    [12, 1],
+    [18, 0.5],
+  ],
+  RB: [],
+  WR: [],
+};
+
+const TIER_HALF_LIFE: Record<string, number> = {
+  RB: 18,
+  WR: 18,
+  TE: 8,
+  QB: 12,
+};
+
+function lookup(
+  table: Array<[number, number]>,
+  posRank: number,
+  fallback: number,
+): number {
+  for (const [maxRank, value] of table) {
+    if (posRank <= maxRank) return value;
+  }
+  return fallback;
+}
+
+/**
+ * Tier weight on (0.15..1.0]. Top of position is worth the most; depth tier
+ * is heavily discounted. This is what stops a "barely-startable" RB30 from
+ * out-scoring a real RB5 just because the equity arithmetic looks similar.
+ */
+function tierWeight(posRank: number, position: string): number {
+  const hl = TIER_HALF_LIFE[position] ?? 18;
+  return Math.max(0.15, 1 - (posRank - 1) / (2.2 * hl));
+}
+
+/**
+ * Loose fallback when we don't have a positional rank. Maps overall PPR
+ * rank to a rough position rank based on typical PPR rank density per
+ * position. Only used when posRank wasn't provided.
+ */
+function approxPosRank(overallRank: number, position: string): number {
+  const factor: Record<string, number> = {
+    QB: 0.13,
+    TE: 0.12,
+    RB: 0.45,
+    WR: 0.45,
+  };
+  return Math.max(1, Math.round(overallRank * (factor[position] ?? 0.45)));
+}
+
+/**
+ * Value score for the Keeper Helper table.
+ *
+ * Components:
+ *   - market round approximated from POSITIONAL rank (not overall PPR)
+ *   - equity = keeperRound - market (positive = below market = good keep)
+ *   - tier weight pulls down depth-tier players even if their equity looks fat
+ *   - scarcity bonus rewards top-of-position TE / QB given how thin those
+ *     positions get in 12-team drafts
+ *
+ * Score = (equity + scarcityBonus) * tierWeight
  */
 export function computeValueScore(
-  rank: number | null,
+  pprRank: number | null,
   keeperCost: number | null,
   position?: string,
+  posRank?: number | null,
 ): number | null {
-  if (rank == null || keeperCost == null) return null;
-  let score = (keeperCost - rank / 12) * ((200 - rank + 50) / 200);
-  if (position === "QB") score *= 0.75;
-  return score;
+  if (pprRank == null || keeperCost == null) return null;
+  const pos = position ?? "WR";
+  const effectivePosRank = posRank ?? approxPosRank(pprRank, pos);
+  const market = lookup(MARKET_ROUND_TABLE[pos] ?? MARKET_ROUND_TABLE.WR, effectivePosRank, 17);
+  const equity = keeperCost - market;
+  const bonus = lookup(SCARCITY_BONUS[pos] ?? [], effectivePosRank, 0);
+  const weight = tierWeight(effectivePosRank, pos);
+  return (equity + bonus) * weight;
 }
 
 function teamNameMap(users: LeagueUser[], rosters: Roster[]) {
@@ -122,6 +237,27 @@ export interface DeriveResult {
   history: Map<string, KeeperHistory>;
   keeperCostByPid: Map<string, number>;
   prevRosterByPid: Map<string, number>;
+}
+
+/**
+ * Build a (playerId → positional rank) map by sorting all players in a pool
+ * by overall PPR rank within each position.
+ */
+function buildPositionalRanks(
+  pool: Array<{ playerId: string; position: string; pprRank: number | null }>,
+): Map<string, number> {
+  const byPos = new Map<string, typeof pool>();
+  for (const p of pool) {
+    if (p.pprRank == null) continue;
+    if (!byPos.has(p.position)) byPos.set(p.position, []);
+    byPos.get(p.position)!.push(p);
+  }
+  const out = new Map<string, number>();
+  byPos.forEach((arr) => {
+    arr.sort((a, b) => (a.pprRank ?? 9999) - (b.pprRank ?? 9999));
+    arr.forEach((p, idx) => out.set(p.playerId, idx + 1));
+  });
+  return out;
 }
 
 export function derivePlayerRows(input: DeriveInput): DeriveResult {
@@ -209,7 +345,10 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
           ? `Keeper cost advanced due to consecutive keeps (was ${baseCostFromRound}, now ${keeperCost})`
           : undefined,
         rosterId: r.roster_id,
-        valueScore: computeValueScore(fcRanks.get(pid) ?? null, keeperCost, pos),
+        // valueScore is filled in a second pass below, once we know each
+        // player's positional rank across the full pool.
+        valueScore: null,
+        posRank: null,
       });
     });
   });
@@ -238,8 +377,25 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
       starReason: undefined,
       rosterId: -1,
       pprRank: rank,
+      posRank: null,
       valueScore: null,
     });
+  });
+
+  // Second pass — now that we have every player, compute positional rank
+  // across the whole pool and refresh the value score for every rostered
+  // player using that positional rank.
+  const posRanks = buildPositionalRanks(rows);
+  rows.forEach((r) => {
+    r.posRank = posRanks.get(r.playerId) ?? null;
+    if (r.rosterId >= 0) {
+      r.valueScore = computeValueScore(
+        r.pprRank,
+        r.keeperRound,
+        r.position,
+        r.posRank,
+      );
+    }
   });
 
   return { rows, teams, history, keeperCostByPid, prevRosterByPid };
