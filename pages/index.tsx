@@ -357,7 +357,7 @@ export default function HomePage() {
             maxKeepers={MAX_KEEPERS_PER_TEAM}
           />
 
-          <div className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex gap-2 md:right-5 md:bottom-5">
+          <div className="fixed right-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-50 flex gap-2 md:right-5 md:bottom-5">
             {dirty && (
               <Button
                 variant="success"

@@ -2,13 +2,15 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { Sheet, SheetClose, SheetContent } from "./ui/Sheet";
+import { NavIcon } from "./NavIcon";
 import { useIdentity } from "../lib/identity";
 import { NAV_LINKS } from "../lib/navLinks";
 import { cn } from "../lib/cn";
 
 /**
- * Fixed bottom tab bar for mobile (hidden on md+). Core destinations sit in the
- * bar; the rest open in a bottom "More" sheet. Desktop keeps the top nav.
+ * Instagram-style floating bottom tab bar for mobile (hidden on md+). A frosted
+ * pill that floats above content, with a rounded highlight behind the active
+ * tab. Core destinations sit in the bar; the rest open in a "More" sheet.
  */
 export default function MobileTabBar() {
   const router = useRouter();
@@ -18,21 +20,25 @@ export default function MobileTabBar() {
 
   const core = NAV_LINKS.filter((l) => l.core);
   const more = NAV_LINKS.filter((l) => !l.core);
-  const moreActive = more.some((l) => l.match(p));
+  const moreActive = more.some((l) => l.match(p)) || moreOpen;
 
   const tabClass = (active: boolean) =>
     cn(
-      "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[0.65rem] font-medium transition-colors",
-      active ? "text-white" : "text-ink-400 hover:text-ink-200",
+      "flex flex-1 flex-col items-center justify-center gap-1 rounded-2xl py-1.5 text-[0.6rem] font-medium transition-colors",
+      active
+        ? "bg-ink-900/[0.07] text-ink-900"
+        : "text-ink-400 hover:text-ink-600",
     );
 
   return (
     <>
-      <nav
-        aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-800 bg-ink-900 pb-[env(safe-area-inset-bottom)] md:hidden"
-      >
-        <div className="flex">
+      {/* pointer-events-none on the wrapper so taps in the side gaps fall
+          through to content; the pill itself re-enables them. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:hidden">
+        <nav
+          aria-label="Primary"
+          className="pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-[1.75rem] border border-ink-200/70 bg-white/85 p-1.5 shadow-lg shadow-ink-900/10 backdrop-blur-xl"
+        >
           {core.map((l) => {
             const active = l.match(p);
             return (
@@ -42,12 +48,7 @@ export default function MobileTabBar() {
                 aria-current={active ? "page" : undefined}
                 className={tabClass(active)}
               >
-                {active && (
-                  <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-500" />
-                )}
-                <span className="text-lg leading-none" aria-hidden>
-                  {l.icon}
-                </span>
+                <NavIcon name={l.icon} className="h-6 w-6" />
                 <span className="leading-none">{l.label}</span>
               </Link>
             );
@@ -59,16 +60,11 @@ export default function MobileTabBar() {
             aria-current={moreActive ? "page" : undefined}
             className={tabClass(moreActive)}
           >
-            {moreActive && (
-              <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-brand-500" />
-            )}
-            <span className="text-lg leading-none" aria-hidden>
-              ☰
-            </span>
+            <NavIcon name="more" className="h-6 w-6" />
             <span className="leading-none">More</span>
           </button>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" title="More">
@@ -86,9 +82,7 @@ export default function MobileTabBar() {
                         : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
                     )}
                   >
-                    <span className="text-2xl" aria-hidden>
-                      {l.icon}
-                    </span>
+                    <NavIcon name={l.icon} className="h-7 w-7" />
                     {l.full}
                   </Link>
                 </SheetClose>
