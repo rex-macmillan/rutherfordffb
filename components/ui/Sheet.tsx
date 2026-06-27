@@ -18,18 +18,20 @@ export function SheetContent({
   title,
 }: {
   children: ReactNode;
-  side?: "right" | "left";
+  side?: "right" | "left" | "bottom";
   className?: string;
   title?: string;
 }) {
   const sideClasses =
     side === "right"
       ? "right-0 inset-y-0 w-[min(420px,90vw)] border-l data-[state=open]:animate-slide-in-right"
-      : "left-0 inset-y-0 w-[min(420px,90vw)] border-r data-[state=open]:animate-slide-in-left";
+      : side === "left"
+      ? "left-0 inset-y-0 w-[min(420px,90vw)] border-r data-[state=open]:animate-slide-in-left"
+      : "inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-slide-in-bottom";
 
   return (
     <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
+      <Dialog.Overlay className="fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm data-[state=open]:animate-overlay-fade" />
       <Dialog.Content
         className={cn(
           "fixed z-[1001] flex flex-col bg-white shadow-2xl outline-none",

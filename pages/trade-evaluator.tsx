@@ -183,7 +183,7 @@ export default function TradeEvaluatorPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Trade Evaluator</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Trade Evaluator</h1>
         <p className="text-sm text-ink-500">
           Unlike generic trade analyzers, this one understands{" "}
           <em>this league&apos;s</em> rules — keeper cost escalation, slide-up
@@ -191,7 +191,7 @@ export default function TradeEvaluatorPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TeamPanel
           label="Team A"
           teams={teams}
@@ -219,8 +219,12 @@ export default function TradeEvaluatorPage() {
       </div>
 
       <Card>
-        <CardBody className="flex flex-wrap items-center gap-3">
-          <Button onClick={evaluate} disabled={!canEvaluate || busy}>
+        <CardBody className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <Button
+            className="w-full min-h-11 sm:w-auto"
+            onClick={evaluate}
+            disabled={!canEvaluate || busy}
+          >
             {busy ? "Evaluating…" : "Evaluate trade"}
           </Button>
           {!canEvaluate && ready && (
@@ -229,7 +233,7 @@ export default function TradeEvaluatorPage() {
             </span>
           )}
           {usage && (
-            <span className="ml-auto text-xs text-ink-500">
+            <span className="text-xs text-ink-500 sm:ml-auto">
               {usage.input_tokens} in / {usage.output_tokens} out
               {usage.cache_read_input_tokens
                 ? ` (${usage.cache_read_input_tokens} cached)`
@@ -276,7 +280,7 @@ export default function TradeEvaluatorPage() {
             </CardBody>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {result.teamA && (
               <SideCard label={`Team A: ${teamA?.teamName}`} side={result.teamA} />
             )}
@@ -360,10 +364,10 @@ function TeamPanel({
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
+      <CardHeader className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <CardTitle>{label}</CardTitle>
         <select
-          className="rounded-md border border-ink-300 px-2 py-1 text-sm"
+          className="w-full min-h-11 rounded-md border border-ink-300 px-2 py-2.5 text-base sm:w-auto sm:min-h-0 sm:py-1 sm:text-sm"
           value={rosterId}
           onChange={(e) => {
             const v = e.target.value;
@@ -393,7 +397,7 @@ function TeamPanel({
                     key={p.playerId}
                     onClick={() => onTogglePlayer(p.playerId)}
                     className={cn(
-                      "flex w-full items-center justify-between gap-2 border-b border-ink-100 px-3 py-1.5 text-left text-sm last:border-0 hover:bg-ink-50",
+                      "flex w-full items-center justify-between gap-2 border-b border-ink-100 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-ink-50 sm:py-1.5",
                       selectedPlayers.has(p.playerId) && "bg-brand-50",
                     )}
                   >
@@ -420,13 +424,13 @@ function TeamPanel({
               <div className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
                 Picks this side sends
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1.5 sm:gap-1">
                 {picks.map((r) => (
                   <button
                     key={r}
                     onClick={() => onTogglePick(r)}
                     className={cn(
-                      "rounded border px-2 py-1 text-xs",
+                      "min-h-9 min-w-11 rounded border px-2.5 py-1.5 text-xs sm:min-h-0 sm:min-w-0 sm:px-2 sm:py-1",
                       selectedPicks.has(r)
                         ? "border-brand-300 bg-brand-100 text-brand-900"
                         : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",

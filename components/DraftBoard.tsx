@@ -30,13 +30,14 @@ const DraftBoard: React.FC<Props> = ({
   rosterIdToName,
 }) => {
   return (
-    <div className="overflow-auto rounded-xl border border-ink-200 bg-white shadow-sm">
-      <div
-        className="grid auto-rows-[64px]"
-        style={{
-          gridTemplateColumns: `64px repeat(${slots.length}, minmax(110px, 1fr))`,
-        }}
-      >
+    <div className="relative scroll-x-fade">
+      <div className="scroll-x overflow-auto rounded-xl border border-ink-200 bg-white shadow-sm">
+        <div
+          className="grid auto-rows-[64px]"
+          style={{
+            gridTemplateColumns: `48px repeat(${slots.length}, minmax(104px, 1fr))`,
+          }}
+        >
         <div className="sticky left-0 top-0 z-20 border-b border-r border-ink-700 bg-ink-900" />
         {slots.map((s) => {
           const rid = picksByRound[1]?.[s]?.rosterId;
@@ -100,6 +101,7 @@ const DraftBoard: React.FC<Props> = ({
             })}
           </React.Fragment>
         ))}
+        </div>
       </div>
     </div>
   );

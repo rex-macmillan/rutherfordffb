@@ -124,7 +124,7 @@ export default function AdvisorPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Keeper Advisor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Keeper Advisor</h1>
         <p className="text-sm text-ink-500">
           Claude analyzes your roster against this league&apos;s rules and
           recommends which keepers to declare — accounting for keeper-cost
@@ -133,11 +133,11 @@ export default function AdvisorPage() {
       </div>
 
       <Card>
-        <CardBody className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+        <CardBody className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <label className="flex w-full flex-col gap-1 text-xs font-medium uppercase tracking-wide text-ink-500 sm:w-auto">
             Team
             <select
-              className="min-w-[220px] rounded-md border border-ink-300 px-2 py-1.5 text-sm text-ink-900 normal-case"
+              className="w-full min-h-11 rounded-md border border-ink-300 px-2 py-2.5 text-base text-ink-900 normal-case sm:w-auto sm:min-w-[220px] sm:py-1.5 sm:text-sm"
               value={selectedRoster}
               onChange={(e) => setSelectedRoster(parseInt(e.target.value))}
               disabled={!ready}
@@ -151,13 +151,14 @@ export default function AdvisorPage() {
             </select>
           </label>
           <Button
+            className="w-full min-h-11 sm:w-auto"
             onClick={runAdvisor}
             disabled={!ready || selectedRoster === "" || busy}
           >
             {busy ? "Thinking…" : "Run advisor"}
           </Button>
           {usage && (
-            <span className="ml-auto text-xs text-ink-500">
+            <span className="text-xs text-ink-500 sm:ml-auto">
               {usage.input_tokens} in / {usage.output_tokens} out
               {usage.cache_read_input_tokens
                 ? ` (${usage.cache_read_input_tokens} cached)`
@@ -247,8 +248,10 @@ export default function AdvisorPage() {
               <CardHeader>
                 <CardTitle>Per-player breakdown</CardTitle>
               </CardHeader>
-              <CardBody className="overflow-x-auto p-0">
-                <table className="w-full text-sm">
+              <CardBody className="p-0">
+                <div className="relative scroll-x-fade">
+                  <div className="scroll-x no-scrollbar overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
                   <thead className="bg-ink-50 text-xs uppercase text-ink-500">
                     <tr>
                       <th className="px-3 py-2 text-left">Player</th>
@@ -294,6 +297,8 @@ export default function AdvisorPage() {
                       ))}
                   </tbody>
                 </table>
+                  </div>
+                </div>
               </CardBody>
             </Card>
           )}

@@ -12,25 +12,29 @@ export function KeepersListPanel({ players }: { players: PlayerInfo[] }) {
     return <p className="text-sm text-ink-500">No keepers saved yet.</p>;
   }
   return (
-    <Table>
-      <THead>
-        <TR>
-          <TH className="w-8">#</TH>
-          <TH>Player</TH>
-          <TH>Pos</TH>
-          <TH>Roster</TH>
-        </TR>
-      </THead>
-      <TBody>
-        {players.map((p, idx) => (
-          <TR key={p.playerId}>
-            <TD>{idx + 1}</TD>
-            <TD className="font-medium">{p.name}</TD>
-            <TD>{p.position}</TD>
-            <TD>{p.roster}</TD>
-          </TR>
-        ))}
-      </TBody>
-    </Table>
+    <div className="relative scroll-x-fade">
+      <div className="scroll-x no-scrollbar overflow-x-auto">
+        <Table className="min-w-[320px]">
+          <THead>
+            <TR>
+              <TH className="w-8">#</TH>
+              <TH>Player</TH>
+              <TH>Pos</TH>
+              <TH>Roster</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {players.map((p, idx) => (
+              <TR key={p.playerId}>
+                <TD>{idx + 1}</TD>
+                <TD className="whitespace-nowrap font-medium">{p.name}</TD>
+                <TD>{p.position}</TD>
+                <TD className="whitespace-nowrap">{p.roster}</TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </div>
+    </div>
   );
 }

@@ -81,7 +81,7 @@ export function RulesChat() {
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="rounded-full border border-ink-200 bg-ink-50 px-3 py-1 text-xs text-ink-700 hover:bg-ink-100"
+                  className="rounded-full border border-ink-200 bg-ink-50 px-3 py-2 text-left text-xs text-ink-700 hover:bg-ink-100 sm:py-1"
                 >
                   {s}
                 </button>
@@ -115,7 +115,7 @@ export function RulesChat() {
         {error && <p className="text-sm text-red-700">{error}</p>}
 
         <form
-          className="flex gap-2"
+          className="flex flex-col gap-2 sm:flex-row"
           onSubmit={(e) => {
             e.preventDefault();
             send(input);
@@ -125,25 +125,32 @@ export function RulesChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about a rule…"
-            className="flex-1 rounded-md border border-ink-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+            className="w-full rounded-md border border-ink-300 px-3 py-2 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 sm:flex-1 sm:text-sm"
             disabled={busy}
           />
-          <Button type="submit" disabled={busy || !input.trim()}>
-            {busy ? "…" : "Send"}
-          </Button>
-          {messages.length > 0 && (
+          <div className="flex gap-2">
             <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                abortRef.current?.abort();
-                setMessages([]);
-                setError(null);
-              }}
+              type="submit"
+              disabled={busy || !input.trim()}
+              className="min-h-[44px] flex-1 sm:flex-none"
             >
-              Clear
+              {busy ? "…" : "Send"}
             </Button>
-          )}
+            {messages.length > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-h-[44px] flex-1 sm:flex-none"
+                onClick={() => {
+                  abortRef.current?.abort();
+                  setMessages([]);
+                  setError(null);
+                }}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </form>
       </CardBody>
     </Card>

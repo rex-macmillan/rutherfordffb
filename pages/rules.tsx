@@ -66,57 +66,66 @@ export default function RulesPage({ content, sections }: RulesPageProps) {
           </h2>
         );
       },
+      // Let wide rulebook tables scroll horizontally on phones instead of
+      // overflowing the reading column.
+      table: ({ children, ...rest }: any) => (
+        <div className="relative scroll-x-fade">
+          <div className="scroll-x no-scrollbar overflow-x-auto">
+            <table {...rest}>{children}</table>
+          </div>
+        </div>
+      ),
     }),
     [],
   );
 
+  const tocItems = useMemo(
+    () => [
+      ...sections,
+      { id: "ask", title: "Ask the rulebook" },
+      { id: "try-it", title: "Try it: slide-up demo" },
+    ],
+    [sections],
+  );
+
+  const tocLink = (id: string, title: string) => (
+    <a
+      key={id}
+      href={`#${id}`}
+      className={cn(
+        "block rounded px-2 py-1 transition-colors",
+        activeId === id
+          ? "bg-brand-50 text-brand-800 font-medium"
+          : "text-ink-600 hover:bg-ink-100",
+      )}
+    >
+      {title}
+    </a>
+  );
+
   return (
-    <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[200px_1fr]">
+    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[200px_1fr] lg:gap-8">
+      {/* Mobile: collapsible TOC at the top */}
+      <details className="rounded-lg border border-ink-200 bg-white lg:hidden">
+        <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
+          On this page
+        </summary>
+        <nav className="space-y-1 px-2 pb-2 text-sm">
+          {tocItems.map((s) => tocLink(s.id, s.title))}
+        </nav>
+      </details>
+
+      {/* Desktop: sticky sidebar */}
       <aside className="hidden lg:sticky lg:top-24 lg:block lg:h-fit">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
           On this page
         </div>
         <nav className="space-y-1 text-sm">
-          {sections.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              className={cn(
-                "block rounded px-2 py-1 transition-colors",
-                activeId === s.id
-                  ? "bg-brand-50 text-brand-800 font-medium"
-                  : "text-ink-600 hover:bg-ink-100",
-              )}
-            >
-              {s.title}
-            </a>
-          ))}
-          <a
-            href="#ask"
-            className={cn(
-              "block rounded px-2 py-1 transition-colors",
-              activeId === "ask"
-                ? "bg-brand-50 text-brand-800 font-medium"
-                : "text-ink-600 hover:bg-ink-100",
-            )}
-          >
-            Ask the rulebook
-          </a>
-          <a
-            href="#try-it"
-            className={cn(
-              "block rounded px-2 py-1 transition-colors",
-              activeId === "try-it"
-                ? "bg-brand-50 text-brand-800 font-medium"
-                : "text-ink-600 hover:bg-ink-100",
-            )}
-          >
-            Try it: slide-up demo
-          </a>
+          {tocItems.map((s) => tocLink(s.id, s.title))}
         </nav>
       </aside>
 
-      <article className="prose prose-slate max-w-none prose-h1:text-3xl prose-h2:mt-10 prose-h2:scroll-mt-24 prose-table:text-sm">
+      <article className="prose prose-slate min-w-0 max-w-none prose-h1:text-2xl prose-h2:mt-10 prose-h2:scroll-mt-24 prose-table:text-sm sm:prose-h1:text-3xl">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {content}
         </ReactMarkdown>

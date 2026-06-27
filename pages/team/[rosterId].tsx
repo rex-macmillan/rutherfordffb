@@ -67,15 +67,19 @@ export default function TeamDetailPage() {
           alt={team.teamName}
           size={48}
         />
-        <div>
-          <h1 className="text-2xl font-semibold">{team.teamName}</h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-semibold sm:text-2xl">
+            {team.teamName}
+          </h1>
           {team.owner && (
-            <p className="text-sm text-ink-500">{team.owner.display_name}</p>
+            <p className="truncate text-sm text-ink-500">
+              {team.owner.display_name}
+            </p>
           )}
         </div>
         <Link
           href="/"
-          className="ml-auto text-sm text-brand-700 underline"
+          className="ml-auto flex shrink-0 items-center text-sm text-brand-700 underline"
         >
           ← All teams
         </Link>
@@ -152,31 +156,39 @@ export default function TeamDetailPage() {
                 </span>
               </CardTitle>
             </CardHeader>
-            <CardBody className="overflow-x-auto p-0">
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Player</TH>
-                    <TH className="w-20">NFL Team</TH>
-                    <TH className="w-24">Rank</TH>
-                    <TH className="w-24">Keeper</TH>
-                    <TH className="w-24">Value</TH>
-                  </TR>
-                </THead>
-                <TBody>
-                  {group.map((p) => (
-                    <TR key={p.playerId} className={cn(`row-pos-${pos}`)}>
-                      <TD className="font-medium">{p.name}</TD>
-                      <TD>{p.teamAbbr}</TD>
-                      <TD>{p.pprRank ?? "—"}</TD>
-                      <TD>
-                        {p.keeperRound != null ? `R${p.keeperRound}` : "—"}
-                      </TD>
-                      <TD>{p.valueScore?.toFixed(1) ?? "—"}</TD>
-                    </TR>
-                  ))}
-                </TBody>
-              </Table>
+            <CardBody className="p-0">
+              <div className="relative scroll-x-fade">
+                <div className="scroll-x no-scrollbar overflow-x-auto">
+                  <Table className="min-w-[34rem]">
+                    <THead>
+                      <TR>
+                        <TH className="sticky left-0 top-0 z-20 bg-ink-100">
+                          Player
+                        </TH>
+                        <TH className="w-20">NFL Team</TH>
+                        <TH className="w-24">Rank</TH>
+                        <TH className="w-24">Keeper</TH>
+                        <TH className="w-24">Value</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {group.map((p) => (
+                        <TR key={p.playerId} className={cn(`row-pos-${pos}`)}>
+                          <TD className="sticky left-0 z-10 bg-inherit font-medium whitespace-nowrap">
+                            {p.name}
+                          </TD>
+                          <TD>{p.teamAbbr}</TD>
+                          <TD>{p.pprRank ?? "—"}</TD>
+                          <TD>
+                            {p.keeperRound != null ? `R${p.keeperRound}` : "—"}
+                          </TD>
+                          <TD>{p.valueScore?.toFixed(1) ?? "—"}</TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </div>
+              </div>
             </CardBody>
           </Card>
         );

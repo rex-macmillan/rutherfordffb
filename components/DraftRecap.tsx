@@ -112,11 +112,11 @@ export function DraftRecap({
                   key={t.team}
                   className="rounded-lg border border-ink-200 p-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">{t.team}</div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 break-words font-semibold">{t.team}</div>
                     <div
                       className={cn(
-                        "rounded px-2 py-0.5 text-xs font-bold",
+                        "shrink-0 rounded px-2 py-0.5 text-xs font-bold",
                         gradeColor(t.grade),
                       )}
                     >

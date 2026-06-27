@@ -25,6 +25,35 @@
   --color-pos-rb: #e7fff4;
   --color-pos-wr: #ffe8e8;
   --color-pos-te: #f4e8ff;
+
+  /* Sheet / drawer slide animations (also used by the existing LeaguePanel). */
+  --animate-slide-in-right: slide-in-right 0.22s ease-out;
+  --animate-slide-in-left: slide-in-left 0.22s ease-out;
+  --animate-slide-in-bottom: slide-in-bottom 0.25s ease-out;
+  --animate-overlay-fade: overlay-fade 0.18s ease-out;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes slide-in-bottom {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+html {
+  /* Stop iOS from inflating font sizes in landscape; keep our own scale. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -32,6 +61,45 @@ body {
   background: var(--color-ink-50);
   color: var(--color-ink-900);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Belt-and-braces against accidental page-level horizontal scroll. Wide
+     content lives in its own .overflow-x-auto containers, never the page body.
+     `clip` (not `hidden`) so it doesn't become a scroll container and break the
+     sticky nav / sticky table headers. */
+  overflow-x: clip;
+}
+
+body {
+  /* No grey flash on tap; native-app feel. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Honour the notch / home indicator when content runs to the screen edge. */
+.pt-safe { padding-top: env(safe-area-inset-top); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pl-safe { padding-left: env(safe-area-inset-left); }
+.pr-safe { padding-right: env(safe-area-inset-right); }
+/* For fixed bottom UI: clear the home indicator on top of normal spacing. */
+.bottom-safe { bottom: calc(env(safe-area-inset-bottom) + 0px); }
+
+/* Momentum scrolling + no scroll chaining for in-card horizontal scrollers. */
+.scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* A right-edge fade hint that there's more to scroll horizontally. Apply to a
+   relatively-positioned wrapper around a .scroll-x table on mobile. */
+.scroll-x-fade { position: relative; }
+.scroll-x-fade::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1.5rem;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, rgba(15, 23, 42, 0.06));
 }
 
 /* Position-tinted rows. Tailwind utilities + arbitrary values work, but a

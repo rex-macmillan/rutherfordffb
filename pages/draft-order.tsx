@@ -22,7 +22,7 @@ export default function DraftOrderPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           Draft Slot Selection Order
         </h1>
         <p className="text-sm text-ink-500">
@@ -58,8 +58,10 @@ export default function DraftOrderPage() {
               )}
             </CardTitle>
           </CardHeader>
-          <CardBody className="overflow-x-auto p-0">
-            <table className="w-full text-sm">
+          <CardBody className="p-0">
+            <div className="relative scroll-x-fade">
+              <div className="scroll-x no-scrollbar overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
               <thead className="bg-ink-50 text-xs uppercase text-ink-500">
                 <tr>
                   <th className="px-3 py-2 text-left">Pick</th>
@@ -120,6 +122,8 @@ export default function DraftOrderPage() {
                 ))}
               </tbody>
             </table>
+              </div>
+            </div>
           </CardBody>
         </Card>
       )}

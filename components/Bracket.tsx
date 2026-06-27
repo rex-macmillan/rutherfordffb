@@ -78,31 +78,35 @@ const Bracket: React.FC<Props> = ({ entries, rosterIdToName, isLosers = false })
   };
 
   return (
-    <div className="flex gap-6 overflow-x-auto pb-4 md:gap-8">
-      {roundNums.map((r) => (
-        <div key={r} className="flex shrink-0 flex-col gap-6">
-          <h4 className="text-center text-xs font-semibold uppercase tracking-wide text-ink-500">
-            Round {r}
-          </h4>
-          {roundsMap[r].map((m, idx) => (
-            <div
-              key={m.matchup_id}
-              className="min-w-[200px] rounded-lg bg-ink-800 px-3 py-2 text-sm text-ink-100 shadow-md"
-            >
-              {labelForMatch(r, idx) && (
-                <div className="mb-1 text-center text-xs font-medium text-amber-300">
-                  {labelForMatch(r, idx)}
+    <div className="relative scroll-x-fade">
+      <div className="scroll-x no-scrollbar overflow-x-auto pb-4">
+        <div className="flex w-max gap-5 sm:gap-6 md:gap-8">
+          {roundNums.map((r) => (
+            <div key={r} className="flex shrink-0 flex-col gap-5 sm:gap-6">
+              <h4 className="text-center text-xs font-semibold uppercase tracking-wide text-ink-500">
+                Round {r}
+              </h4>
+              {roundsMap[r].map((m, idx) => (
+                <div
+                  key={m.matchup_id}
+                  className="w-[180px] shrink-0 rounded-lg bg-ink-800 px-3 py-2 text-sm text-ink-100 shadow-md sm:w-[200px]"
+                >
+                  {labelForMatch(r, idx) && (
+                    <div className="mb-1 text-center text-xs font-medium text-amber-300">
+                      {labelForMatch(r, idx)}
+                    </div>
+                  )}
+                  {renderTeam(m.t1, m.winner === m.t1, m.seed1, m.score1)}
+                  <div className="text-center text-[0.65rem] uppercase tracking-widest text-ink-500">
+                    vs
+                  </div>
+                  {renderTeam(m.t2, m.winner === m.t2, m.seed2, m.score2)}
                 </div>
-              )}
-              {renderTeam(m.t1, m.winner === m.t1, m.seed1, m.score1)}
-              <div className="text-center text-[0.65rem] uppercase tracking-widest text-ink-500">
-                vs
-              </div>
-              {renderTeam(m.t2, m.winner === m.t2, m.seed2, m.score2)}
+              ))}
             </div>
           ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 };

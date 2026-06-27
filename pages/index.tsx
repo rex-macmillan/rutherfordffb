@@ -201,7 +201,7 @@ export default function HomePage() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {league?.name ? `${league.name}` : "Keeper Helper"}
           </h1>
           <p className="text-sm text-ink-500">
@@ -238,7 +238,7 @@ export default function HomePage() {
           <CardBody className="flex flex-wrap items-end gap-4">
             <Filter label="Team">
               <select
-                className="rounded-md border border-ink-300 px-2 py-1.5 text-sm"
+                className="w-full rounded-md border border-ink-300 px-3 py-2 text-sm sm:w-auto"
                 value={selectedRoster}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -255,7 +255,7 @@ export default function HomePage() {
             </Filter>
             <Filter label="Position">
               <select
-                className="rounded-md border border-ink-300 px-2 py-1.5 text-sm"
+                className="w-full rounded-md border border-ink-300 px-3 py-2 text-sm sm:w-auto"
                 value={selectedPos}
                 onChange={(e) => setSelectedPos(e.target.value)}
               >
@@ -272,7 +272,7 @@ export default function HomePage() {
                 type="checkbox"
                 checked={showDraftDetails}
                 onChange={(e) => setShowDraftDetails(e.target.checked)}
-                className="h-4 w-4 accent-brand-600"
+                className="h-5 w-5 accent-brand-600"
               />
               Show previous draft details
             </label>
@@ -280,9 +280,9 @@ export default function HomePage() {
         </Card>
       ) : null}
 
-      {/* Team strip */}
+      {/* Team strip — horizontal scroll on mobile, wraps on larger screens. */}
       {data && (
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {data.teams.map((t) => {
             const roster = data.currentRosters.find((r) => r.roster_id === t.rosterId);
             const user = data.currentUsers.find((u) => u.user_id === roster?.owner_id);
@@ -294,7 +294,7 @@ export default function HomePage() {
                   setSelectedRoster(active ? "all" : t.rosterId)
                 }
                 className={cn(
-                  "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
                   active
                     ? "border-brand-300 bg-brand-50 text-brand-900"
                     : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
@@ -332,7 +332,7 @@ export default function HomePage() {
 
       {data && filteredPlayers.length > 0 && (
         <>
-          <div className="flex items-center justify-end gap-2 text-xs text-ink-500">
+          <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-ink-500">
             <span>
               PPR rankings:{" "}
               <a className="underline" href="https://fantasycalc.com" target="_blank" rel="noreferrer">
@@ -357,7 +357,7 @@ export default function HomePage() {
             maxKeepers={MAX_KEEPERS_PER_TEAM}
           />
 
-          <div className="fixed bottom-5 right-5 z-50 flex gap-2">
+          <div className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex gap-2 md:right-5 md:bottom-5">
             {dirty && (
               <Button
                 variant="success"
@@ -405,7 +405,7 @@ export default function HomePage() {
 
 function Filter({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+    <label className="flex w-full flex-col gap-1 text-xs font-medium uppercase tracking-wide text-ink-500 sm:w-auto">
       {label}
       <div className="text-sm normal-case text-ink-900">{children}</div>
     </label>

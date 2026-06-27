@@ -13,22 +13,26 @@ export function KeeperRulesPanel() {
         </Link>{" "}
         for details.
       </p>
-      <Table>
-        <THead>
-          <TR>
-            <TH>Drafted</TH>
-            <TH>Keeper Cost</TH>
-          </TR>
-        </THead>
-        <TBody>
-          {KEEPER_COST_TABLE.map((row) => (
-            <TR key={String(row.draftedRound)}>
-              <TD>{row.draftedRound}</TD>
-              <TD>{row.keeperRound}</TD>
-            </TR>
-          ))}
-        </TBody>
-      </Table>
+      <div className="relative scroll-x-fade">
+        <div className="scroll-x no-scrollbar overflow-x-auto">
+          <Table className="min-w-[260px]">
+            <THead>
+              <TR>
+                <TH>Drafted</TH>
+                <TH>Keeper Cost</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {KEEPER_COST_TABLE.map((row) => (
+                <TR key={String(row.draftedRound)}>
+                  <TD>{row.draftedRound}</TD>
+                  <TD>{row.keeperRound}</TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -258,7 +258,7 @@ export default function PlayoffsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold tracking-tight">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {seasonLabel ? `${seasonLabel} Playoffs` : "Playoffs"}
       </h1>
 
@@ -273,52 +273,58 @@ export default function PlayoffsPage() {
           <CardHeader>
             <CardTitle>Final Standings &amp; Next Year&apos;s Draft Order</CardTitle>
           </CardHeader>
-          <CardBody className="overflow-x-auto p-0">
-            <Table>
-              <THead>
-                <TR>
-                  <TH
-                    className={cn(
-                      "cursor-pointer hover:text-brand-700",
-                      sortBy === "place" && "text-brand-700",
-                    )}
-                    onClick={() => setSortBy("place")}
-                  >
-                    Place {sortBy === "place" ? "▼" : ""}
-                  </TH>
-                  <TH
-                    className={cn(
-                      "cursor-pointer hover:text-brand-700",
-                      sortBy === "draftPos" && "text-brand-700",
-                    )}
-                    onClick={() => setSortBy("draftPos")}
-                  >
-                    Draft {sortBy === "draftPos" ? "▼" : ""}
-                  </TH>
-                  <TH>Team</TH>
-                  <TH>Points</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {[...rows]
-                  .sort((a, b) =>
-                    sortBy === "place" ? a.place - b.place : a.draftPos - b.draftPos,
-                  )
-                  .map((r) => (
-                    <TR key={r.team}>
-                      <TD className="font-semibold">{r.place}</TD>
-                      <TD>{r.draftPos}</TD>
-                      <TD>
-                        <span className="flex items-center gap-2">
-                          <Avatar avatarId={r.avatarId} alt={r.team} size={24} />
-                          <span className="font-medium">{r.team}</span>
-                        </span>
-                      </TD>
-                      <TD className="tabular-nums">{r.points.toFixed(2)}</TD>
+          <CardBody className="p-0">
+            <div className="relative scroll-x-fade">
+              <div className="scroll-x no-scrollbar overflow-x-auto">
+                <Table className="min-w-[28rem]">
+                  <THead>
+                    <TR>
+                      <TH
+                        className={cn(
+                          "sticky left-0 top-0 z-20 cursor-pointer bg-ink-100 hover:text-brand-700",
+                          sortBy === "place" && "text-brand-700",
+                        )}
+                        onClick={() => setSortBy("place")}
+                      >
+                        Place {sortBy === "place" ? "▼" : ""}
+                      </TH>
+                      <TH
+                        className={cn(
+                          "cursor-pointer hover:text-brand-700",
+                          sortBy === "draftPos" && "text-brand-700",
+                        )}
+                        onClick={() => setSortBy("draftPos")}
+                      >
+                        Draft {sortBy === "draftPos" ? "▼" : ""}
+                      </TH>
+                      <TH>Team</TH>
+                      <TH>Points</TH>
                     </TR>
-                  ))}
-              </TBody>
-            </Table>
+                  </THead>
+                  <TBody>
+                    {[...rows]
+                      .sort((a, b) =>
+                        sortBy === "place" ? a.place - b.place : a.draftPos - b.draftPos,
+                      )
+                      .map((r) => (
+                        <TR key={r.team} className="bg-white">
+                          <TD className="sticky left-0 z-10 bg-inherit font-semibold">
+                            {r.place}
+                          </TD>
+                          <TD>{r.draftPos}</TD>
+                          <TD>
+                            <span className="flex items-center gap-2">
+                              <Avatar avatarId={r.avatarId} alt={r.team} size={24} />
+                              <span className="font-medium whitespace-nowrap">{r.team}</span>
+                            </span>
+                          </TD>
+                          <TD className="tabular-nums">{r.points.toFixed(2)}</TD>
+                        </TR>
+                      ))}
+                  </TBody>
+                </Table>
+              </div>
+            </div>
           </CardBody>
         </Card>
       )}
