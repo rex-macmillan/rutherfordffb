@@ -19,9 +19,9 @@ export interface NavLink {
 export const NAV_LINKS: NavLink[] = [
   { href: "/", label: "Keeper", full: "Keeper Helper", icon: "🏈", core: true, match: (p) => p === "/" },
   { href: "/draftboard", label: "Board", full: "Draft Board", icon: "📋", core: true, match: (p) => p.startsWith("/draftboard") },
-  { href: "/advisor", label: "Advisor", full: "Advisor", icon: "✨", core: true, match: (p) => p.startsWith("/advisor") },
-  { href: "/trade-evaluator", label: "Trade", full: "Trade Eval", icon: "⚖️", core: true, match: (p) => p.startsWith("/trade-evaluator") },
-  { href: "/draft-order", label: "Draft Order", full: "Draft Order", icon: "🗓️", core: false, match: (p) => p.startsWith("/draft-order") },
+  { href: "/draft-order", label: "Order", full: "Draft Order", icon: "🗓️", core: true, match: (p) => p.startsWith("/draft-order") },
+  { href: "/rules", label: "Rules", full: "Rules", icon: "📜", core: true, match: (p) => p.startsWith("/rules") },
+  { href: "/advisor", label: "Advisor", full: "Advisor", icon: "✨", core: false, match: (p) => p.startsWith("/advisor") },
+  { href: "/trade-evaluator", label: "Trade", full: "Trade Eval", icon: "⚖️", core: false, match: (p) => p.startsWith("/trade-evaluator") },
   { href: "/playoffs", label: "Playoffs", full: "Playoffs", icon: "🏆", core: false, match: (p) => p.startsWith("/playoffs") },
-  { href: "/rules", label: "Rules", full: "Rules", icon: "📜", core: false, match: (p) => p.startsWith("/rules") },
 ];

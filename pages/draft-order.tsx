@@ -6,8 +6,7 @@ import { useDraftSelectionOrder } from "../lib/draftOrder";
 import { cn } from "../lib/cn";
 
 export default function DraftOrderPage() {
-  const { rows, seasonLabel, upcomingDraftHasSlots, isLoading, error } =
-    useDraftSelectionOrder();
+  const { rows, seasonLabel, isLoading, error } = useDraftSelectionOrder();
 
   if (isLoading) {
     return (
@@ -49,14 +48,7 @@ export default function DraftOrderPage() {
       {rows.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Selection order</span>
-              {upcomingDraftHasSlots && (
-                <span className="text-xs font-normal text-emerald-700">
-                  ✓ Slots locked in Sleeper
-                </span>
-              )}
-            </CardTitle>
+            <CardTitle>Selection order</CardTitle>
           </CardHeader>
           <CardBody className="p-0">
             <div className="relative scroll-x-fade">
@@ -68,7 +60,6 @@ export default function DraftOrderPage() {
                   <th className="px-3 py-2 text-left">Finished</th>
                   <th className="px-3 py-2 text-left">Team</th>
                   <th className="px-3 py-2 text-right">Pts For</th>
-                  <th className="px-3 py-2 text-right">Slot</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,15 +100,6 @@ export default function DraftOrderPage() {
                     <td className="px-3 py-2 text-right tabular-nums text-ink-700">
                       {r.pointsFor.toFixed(2)}
                     </td>
-                    <td className="px-3 py-2 text-right">
-                      {r.chosenSlot != null ? (
-                        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded bg-emerald-100 px-2 text-xs font-semibold text-emerald-800 tabular-nums">
-                          {r.chosenSlot}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-ink-400">—</span>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -147,10 +129,6 @@ export default function DraftOrderPage() {
             you keep a player, their round cost consumes your pick in the slot
             you chose (e.g. you chose slot 4 and keep a 4th-rounder → that
             player occupies pick 4.04).
-          </p>
-          <p className="text-xs text-ink-500">
-            Once the commissioner sets the Sleeper draft order, the &quot;Slot&quot;
-            column on this page populates from Sleeper&apos;s assignments.
           </p>
         </CardBody>
       </Card>
