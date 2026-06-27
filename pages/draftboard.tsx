@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import Link from "next/link";
 import DraftBoard from "../components/DraftBoard";
 import { CountdownBanner } from "../components/CountdownBanner";
 import { DraftRecap } from "../components/DraftRecap";
@@ -21,6 +22,8 @@ import {
   useTradedPicks,
 } from "../lib/sleeperQueries";
 import { useLeagueKeepers } from "../lib/leagueState";
+import { useDraftSelectionOrder } from "../lib/draftOrder";
+import { resolveDraftSlotMap } from "../lib/draftSlots";
 import {
   assignKeeperSlots,
   buildKeeperCostMap,
@@ -75,6 +78,7 @@ export default function DraftBoardPage() {
   const playersQ = usePlayers();
   const fcQ = useFCRanks();
   const chainQ = useLeagueChainDraftPicks(league?.previous_league_id);
+  const selOrder = useDraftSelectionOrder();
 
   const { data: keeperData } = useLeagueKeepers(leagueId);
 
@@ -92,16 +96,35 @@ export default function DraftBoardPage() {
   const board = useMemo(() => {
     if (!ready) return null;
 
-    const slotMap: Record<string, number> =
+    const sleeperSlotMap: Record<string, number> =
       (draftQ.data?.slot_to_roster_id as Record<string, number>) ||
       (draftQ.data?.draft_order as Record<string, number>) ||
       {};
-    const finalSlotMap = { ...slotMap };
-    if (Object.keys(finalSlotMap).length === 0) {
-      rostersQ.data!.forEach((r, idx) => {
-        finalSlotMap[String(idx + 1)] = r.roster_id;
-      });
-    }
+    const rosterIds = rostersQ.data!.map((r) => r.roster_id);
+
+    // Sleeper always returns a populated slot_to_roster_id (the identity/join
+    // map before the order is set), so its presence means nothing. The order is
+    // only OFFICIAL once draft_order is set (or the draft is underway/complete).
+    const orderIsOfficial =
+      draftQ.data?.draft_order != null ||
+      draftQ.data?.status === "drafting" ||
+      draftQ.data?.status === "complete";
+
+    // When the order isn't official we'll default to the slot-selection order —
+    // wait for it to load first so we don't flash the join-order fallback.
+    if (!orderIsOfficial && selOrder.isLoading) return null;
+
+    const {
+      slotMap: finalSlotMap,
+      provisional: slotsProvisional,
+      source: slotSource,
+    } = resolveDraftSlotMap({
+      sleeperSlotMap,
+      orderIsOfficial,
+      selectionRows: selOrder.rows,
+      rosterIds,
+    });
+
     const slotNumbers = Object.keys(finalSlotMap)
       .map((n) => parseInt(n))
       .sort((a, b) => a - b);
@@ -163,7 +186,6 @@ export default function DraftBoardPage() {
       });
     });
 
-    const rosterIds = rostersQ.data!.map((r) => r.roster_id);
     const deltas = computeDraftDeltas(rosterIds, tradedQ.data!, season!);
     const missingByRoster = missingByRosterFromDeltas(deltas);
 
@@ -231,6 +253,8 @@ export default function DraftBoardPage() {
       grid,
       keeperRows,
       bestRows,
+      slotsProvisional,
+      slotSource,
     };
   }, [
     ready,
@@ -243,6 +267,8 @@ export default function DraftBoardPage() {
     chainQ.data,
     keeperData,
     season,
+    selOrder.rows,
+    selOrder.isLoading,
   ]);
 
   const panelTabs = useMemo(() => {
@@ -298,6 +324,27 @@ export default function DraftBoardPage() {
   return (
     <div className="space-y-4">
       <CountdownBanner />
+      {board.slotsProvisional && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {board.slotSource === "selection" ? (
+            <>
+              Provisional board — the draft order isn&apos;t set in Sleeper yet,
+              so slots default to the{" "}
+              <Link href="/draft-order" className="font-medium underline">
+                slot-selection order
+              </Link>{" "}
+              (reverse standings; the first selector shows in slot 1). It updates
+              automatically once the commissioner locks the order.
+            </>
+          ) : (
+            <>
+              Provisional board — the draft order isn&apos;t set in Sleeper and
+              the previous season&apos;s standings aren&apos;t fully resolved, so
+              slots fall back to roster order for now.
+            </>
+          )}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Upcoming Draft Board</CardTitle>
