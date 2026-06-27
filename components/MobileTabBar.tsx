@@ -33,12 +33,15 @@ export default function MobileTabBar() {
   return (
     <>
       {/* pointer-events-none on the wrapper so taps in the side gaps fall
-          through to content; the pill itself re-enables them. */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] md:hidden">
-        <nav
-          aria-label="Primary"
-          className="pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-[1.75rem] border border-ink-200/70 bg-white/85 p-1.5 shadow-lg shadow-ink-900/10 backdrop-blur-xl"
-        >
+          through to content; the pill itself re-enables them. The scrim fades
+          scrolling content into the page bg so nothing peeks around the pill. */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 md:hidden">
+        <div className="nav-scrim absolute inset-x-0 bottom-0 h-28" />
+        <div className="relative px-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
+          <nav
+            aria-label="Primary"
+            className="pointer-events-auto mx-auto flex max-w-md items-stretch gap-1 rounded-[1.75rem] border border-ink-200/70 bg-white/85 p-1.5 shadow-lg shadow-ink-900/10 backdrop-blur-xl"
+          >
           {core.map((l) => {
             const active = l.match(p);
             return (
@@ -63,7 +66,8 @@ export default function MobileTabBar() {
             <NavIcon name="more" className="h-6 w-6" />
             <span className="leading-none">More</span>
           </button>
-        </nav>
+          </nav>
+        </div>
       </div>
 
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>

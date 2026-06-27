@@ -73,6 +73,16 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Fade scrolling content into the page background behind the floating mobile
+   tab bar, so nothing peeks through the bar's side/bottom gaps. */
+.nav-scrim {
+  background: linear-gradient(
+    to top,
+    #f8fafc 55%,
+    rgba(248, 250, 252, 0) 100%
+  );
+}
+
 /* Honour the notch / home indicator when content runs to the screen edge. */
 .pt-safe { padding-top: env(safe-area-inset-top); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }

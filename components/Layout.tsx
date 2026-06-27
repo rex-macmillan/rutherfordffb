@@ -66,7 +66,7 @@ const Layout: React.FC<Props> = ({ children }) => {
           </div>
         </nav>
 
-        <main className="px-4 py-4 pb-[calc(5.25rem+env(safe-area-inset-bottom))] md:px-6 md:py-6 md:pb-6">
+        <main className="px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:py-6 md:pb-6">
           {children}
         </main>
 
