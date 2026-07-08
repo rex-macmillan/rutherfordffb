@@ -21,6 +21,8 @@ interface Props {
   picksByRound: Record<number, Record<number, PickCell>>;
   maxRound: number;
   rosterIdToName: Record<number, string>;
+  /** Slot number of the signed-in user's column — gets a highlight tint. */
+  highlightSlot?: number | null;
 }
 
 const DraftBoard: React.FC<Props> = ({
@@ -28,6 +30,7 @@ const DraftBoard: React.FC<Props> = ({
   picksByRound,
   maxRound,
   rosterIdToName,
+  highlightSlot = null,
 }) => {
   return (
     <div className="relative scroll-x-fade">
@@ -35,16 +38,20 @@ const DraftBoard: React.FC<Props> = ({
         <div
           className="grid auto-rows-[64px]"
           style={{
-            gridTemplateColumns: `48px repeat(${slots.length}, minmax(104px, 1fr))`,
+            gridTemplateColumns: `44px repeat(${slots.length}, minmax(96px, 1fr))`,
           }}
         >
         <div className="sticky left-0 top-0 z-20 border-b border-r border-ink-700 bg-ink-900" />
         {slots.map((s) => {
           const rid = picksByRound[1]?.[s]?.rosterId;
+          const mine = highlightSlot != null && s === highlightSlot;
           return (
             <div
               key={`h-${s}`}
-              className="sticky top-0 z-10 grid place-items-center border-b border-r border-ink-700 bg-ink-900 px-1 text-center text-[0.7rem] font-medium leading-tight text-ink-100"
+              className={cn(
+                "sticky top-0 z-10 grid place-items-center border-b border-r border-ink-700 bg-ink-900 px-1 text-center text-[0.7rem] font-medium leading-tight text-ink-100",
+                mine && "shadow-[inset_0_-3px_0_var(--color-brand-500)] text-white",
+              )}
             >
               {rosterIdToName[rid] || `Slot ${s}`}
             </div>
@@ -58,13 +65,17 @@ const DraftBoard: React.FC<Props> = ({
             </div>
             {slots.map((slot) => {
               const cell = picksByRound[round]?.[slot];
+              const mine = highlightSlot != null && slot === highlightSlot;
               const label =
                 round % 2 === 1 ? `${round}.${slot}` : `${round}.${slots.length - slot + 1}`;
               if (!cell)
                 return (
                   <div
                     key={`${round}-${slot}`}
-                    className="border-b border-r border-ink-200"
+                    className={cn(
+                      "border-b border-r border-ink-200",
+                      mine && "bg-brand-50/50",
+                    )}
                   />
                 );
               return (
@@ -72,6 +83,7 @@ const DraftBoard: React.FC<Props> = ({
                   key={`${round}-${slot}`}
                   className={cn(
                     "border-b border-r border-ink-200 px-1 py-1.5 text-center text-[0.75rem] leading-tight",
+                    mine && "bg-brand-50/50",
                     cell.keeper && "bg-emerald-50",
                     cell.traded && !cell.keeper && "bg-amber-50",
                   )}

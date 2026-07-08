@@ -2,6 +2,7 @@ import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, 
 import { Sheet, SheetContent, SheetTrigger } from "./ui/Sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/Tabs";
 import { Button } from "./ui/Button";
+import { NavIcon } from "./NavIcon";
 import { cn } from "../lib/cn";
 
 /**
@@ -79,13 +80,15 @@ export function LeaguePanelTrigger({ className }: { className?: string }) {
         <Button
           size="sm"
           variant="secondary"
+          aria-label="League panels"
           className={cn(
-            "border-ink-700/30 bg-ink-800 text-white hover:bg-ink-700",
+            "h-10 gap-1.5 border-ink-700/30 bg-ink-800 px-2.5 text-white hover:bg-ink-700 md:h-8",
             className,
           )}
         >
-          Panels
-          <span className="ml-1 rounded-full bg-brand-600 px-1.5 py-px text-[0.65rem] font-bold text-white">
+          <NavIcon name="panels" className="h-5 w-5" />
+          <span className="hidden md:inline">Panels</span>
+          <span className="rounded-full bg-brand-600 px-1.5 py-px text-[0.65rem] font-bold text-white">
             {tabs.length}
           </span>
         </Button>

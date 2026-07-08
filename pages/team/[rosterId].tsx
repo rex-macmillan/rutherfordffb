@@ -50,8 +50,8 @@ export default function TeamDetailPage() {
     return (
       <div>
         <p className="mb-3 text-ink-600">Roster not found.</p>
-        <Link href="/" className="text-brand-700 underline">
-          ← Back to Keeper Helper
+        <Link href="/teams" className="text-brand-700 underline">
+          ← Back to Teams
         </Link>
       </div>
     );
@@ -78,8 +78,8 @@ export default function TeamDetailPage() {
           )}
         </div>
         <Link
-          href="/"
-          className="ml-auto flex shrink-0 items-center text-sm text-brand-700 underline"
+          href="/teams"
+          className="ml-auto flex min-h-11 shrink-0 items-center text-sm text-brand-700 underline"
         >
           ← All teams
         </Link>

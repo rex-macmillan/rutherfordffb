@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import DraftBoard from "../components/DraftBoard";
 import { CountdownBanner } from "../components/CountdownBanner";
 import { DraftRecap } from "../components/DraftRecap";
@@ -8,8 +9,10 @@ import { KeeperRulesPanel } from "../components/panels/KeeperRulesPanel";
 import { KeepersListPanel } from "../components/panels/KeepersListPanel";
 import { BestAvailablePanel } from "../components/panels/BestAvailablePanel";
 import { Skeleton } from "../components/ui/Skeleton";
+import { Avatar } from "../components/ui/Avatar";
 import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
-import { useCurrentLeague } from "../lib/leagueHooks";
+import { findMyRosterId, useCurrentLeague } from "../lib/leagueHooks";
+import { useIdentity } from "../lib/identity";
 import {
   useDraft,
   useDraftPicks,
@@ -35,8 +38,11 @@ import {
   UNDRAFTED_KEEPER_ROUND,
 } from "../lib/keepers";
 import { LeagueUser, SleeperPlayer } from "../lib/sleeperApi";
+import { cn } from "../lib/cn";
 
 const POSITION_PRIORITY = ["QB", "RB", "WR", "TE"] as const;
+
+type DraftTab = "board" | "order" | "recap";
 
 function preferredPosition(meta: SleeperPlayer | undefined): string {
   if (!meta) return "WR";
@@ -64,7 +70,15 @@ function teamNameByOwner(users: LeagueUser[]): Record<string, string> {
   return out;
 }
 
-export default function DraftBoardPage() {
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+export default function DraftCenterPage() {
+  const router = useRouter();
+  const { username } = useIdentity();
   const { league, season } = useCurrentLeague();
   const leagueId = league?.league_id;
 
@@ -81,6 +95,23 @@ export default function DraftBoardPage() {
   const selOrder = useDraftSelectionOrder();
 
   const { data: keeperData } = useLeagueKeepers(leagueId);
+
+  // ----- Tab state, synced with ?tab= so links deep-link correctly -----
+  const [tab, setTab] = useState<DraftTab>("board");
+  useEffect(() => {
+    if (!router.isReady) return;
+    const t = router.query.tab;
+    if (t === "board" || t === "order" || t === "recap") setTab(t);
+  }, [router.isReady, router.query.tab]);
+
+  const switchTab = (t: DraftTab) => {
+    setTab(t);
+    router.replace(
+      { pathname: "/draft", query: t === "board" ? {} : { tab: t } },
+      undefined,
+      { shallow: true },
+    );
+  };
 
   const ready =
     !!league &&
@@ -255,6 +286,7 @@ export default function DraftBoardPage() {
       bestRows,
       slotsProvisional,
       slotSource,
+      slotForRoster,
     };
   }, [
     ready,
@@ -270,6 +302,12 @@ export default function DraftBoardPage() {
     selOrder.rows,
     selOrder.isLoading,
   ]);
+
+  const mySlot = useMemo(() => {
+    if (!board || !rostersQ.data || !usersQ.data) return null;
+    const rid = findMyRosterId(usersQ.data, rostersQ.data, username);
+    return rid != null ? board.slotForRoster[rid] ?? null : null;
+  }, [board, rostersQ.data, usersQ.data, username]);
 
   const panelTabs = useMemo(() => {
     if (!board) return [];
@@ -311,6 +349,15 @@ export default function DraftBoardPage() {
     });
   }, [draftComplete, livePicksQ.data, playersQ.data, board, fcQ.data]);
 
+  // "recap" is only a valid tab once the draft is complete.
+  const activeTab: DraftTab = tab === "recap" && !draftComplete ? "board" : tab;
+
+  const tabs: { key: DraftTab; label: string }[] = [
+    { key: "board", label: "Board" },
+    { key: "order", label: "Order" },
+    ...(draftComplete ? [{ key: "recap" as DraftTab, label: "Recap" }] : []),
+  ];
+
   if (!ready || !board) {
     return (
       <div className="space-y-3">
@@ -324,45 +371,219 @@ export default function DraftBoardPage() {
   return (
     <div className="space-y-4">
       <CountdownBanner />
-      {board.slotsProvisional && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {board.slotSource === "selection" ? (
-            <>
-              Provisional board — the draft order isn&apos;t set in Sleeper yet,
-              so slots default to the{" "}
-              <Link href="/draft-order" className="font-medium underline">
-                slot-selection order
-              </Link>{" "}
-              (reverse standings; the first selector shows in slot 1). It updates
-              automatically once the commissioner locks the order.
-            </>
-          ) : (
-            <>
-              Provisional board — the draft order isn&apos;t set in Sleeper and
-              the previous season&apos;s standings aren&apos;t fully resolved, so
-              slots fall back to roster order for now.
-            </>
-          )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Draft</h1>
+        <div className="inline-flex rounded-xl border border-ink-200 bg-white p-1 shadow-sm">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => switchTab(t.key)}
+              aria-pressed={activeTab === t.key}
+              className={cn(
+                "min-h-10 rounded-lg px-4 text-sm font-medium transition-colors",
+                activeTab === t.key
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-ink-600 hover:text-ink-900",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Draft Board</CardTitle>
-        </CardHeader>
-        <CardBody className="p-0">
+      </div>
+
+      {activeTab === "board" && (
+        <>
+          {board.slotsProvisional && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {board.slotSource === "selection" ? (
+                <>
+                  Provisional board — the draft order isn&apos;t set in Sleeper yet,
+                  so slots default to the{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchTab("order")}
+                    className="font-medium underline"
+                  >
+                    slot-selection order
+                  </button>{" "}
+                  (reverse standings; the first selector shows in slot 1). It updates
+                  automatically once the commissioner locks the order.
+                </>
+              ) : (
+                <>
+                  Provisional board — the draft order isn&apos;t set in Sleeper and
+                  the previous season&apos;s standings aren&apos;t fully resolved, so
+                  slots fall back to roster order for now.
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-500">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm border border-emerald-200 bg-emerald-50" />
+              Keeper
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-3 w-3 rounded-sm border border-amber-200 bg-amber-50" />
+              Traded pick
+            </span>
+            {mySlot != null && (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-3 w-3 rounded-sm border border-brand-200 bg-brand-50" />
+                Your column
+              </span>
+            )}
+          </div>
+
           <DraftBoard
             slots={board.slotNumbers}
             teams={[]}
             picksByRound={board.grid}
             maxRound={MAX_DRAFT_ROUND}
             rosterIdToName={board.idToName}
+            highlightSlot={mySlot}
           />
-        </CardBody>
-      </Card>
+        </>
+      )}
 
-      {draftComplete && season && (
+      {activeTab === "order" && <OrderTab />}
+
+      {activeTab === "recap" && draftComplete && season && (
         <DraftRecap season={season} picks={recapPicks} />
       )}
+    </div>
+  );
+}
+
+/** Slot-selection order — the old /draft-order page, now a Draft tab. */
+function OrderTab() {
+  const { rows, seasonLabel, isLoading, error } = useDraftSelectionOrder();
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-500">
+        Order in which managers select their draft slot, based on{" "}
+        {seasonLabel || "the previous season"}&apos;s final standings. Per{" "}
+        <Link href="/rules#4-draft-order-slot-selection" className="text-brand-700 underline">
+          §4 of the rulebook
+        </Link>
+        , the worst-finishing teams pick first.
+      </p>
+
+      {error && (
+        <Card>
+          <CardBody className="text-sm text-red-700">{error.message}</CardBody>
+        </Card>
+      )}
+
+      {rows.length === 0 && !isLoading && !error && (
+        <Card>
+          <CardBody className="text-sm text-ink-700">
+            No completed bracket data found yet for the previous season.
+          </CardBody>
+        </Card>
+      )}
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Selection order</CardTitle>
+          </CardHeader>
+          <CardBody className="p-0">
+            <div className="relative scroll-x-fade">
+              <div className="scroll-x no-scrollbar overflow-x-auto">
+                <table className="w-full min-w-[480px] text-sm">
+                  <thead className="bg-ink-50 text-xs uppercase text-ink-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Pick</th>
+                      <th className="px-3 py-2 text-left">Finished</th>
+                      <th className="px-3 py-2 text-left">Team</th>
+                      <th className="px-3 py-2 text-right">Pts For</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr
+                        key={r.rosterId}
+                        className={cn(
+                          "border-t border-ink-100",
+                          r.selectionOrder === 1 && "bg-brand-50/40",
+                        )}
+                      >
+                        <td className="px-3 py-2">
+                          <span
+                            className={cn(
+                              "inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold tabular-nums",
+                              r.selectionOrder === 1
+                                ? "bg-brand-600 text-white"
+                                : "bg-ink-100 text-ink-700",
+                            )}
+                          >
+                            {r.selectionOrder}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 tabular-nums text-ink-700">
+                          {ordinal(r.place)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar avatarId={r.avatarId} alt={r.teamName} size={28} />
+                            <div className="min-w-0">
+                              <div className="font-medium">{r.teamName}</div>
+                              {r.managerName && r.managerName !== r.teamName && (
+                                <div className="text-xs text-ink-500">{r.managerName}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-ink-700">
+                          {r.pointsFor.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>How this works</CardTitle>
+        </CardHeader>
+        <CardBody className="space-y-2 text-sm text-ink-700">
+          <p>
+            The selection sequence is hard-wired:{" "}
+            <code className="rounded bg-ink-100 px-1 py-0.5 text-xs">
+              7 → 8 → 9 → 10 → 11 → 12 → 5 → 6 → 3 → 4 → 2 → 1
+            </code>
+            . The number is the team&apos;s previous-season final place. So the
+            7th-place team picks their preferred slot first; the champion picks
+            last.
+          </p>
+          <p>
+            Slot selection happens <strong>before keepers lock</strong> — when
+            you keep a player, their round cost consumes your pick in the slot
+            you chose (e.g. you chose slot 4 and keep a 4th-rounder → that
+            player occupies pick 4.04).
+          </p>
+        </CardBody>
+      </Card>
     </div>
   );
 }

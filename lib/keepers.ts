@@ -59,6 +59,9 @@ export interface DraftDelta {
 // ---------- Re-export ----------
 export { calculateKeeperRound, MAX_DRAFT_ROUND, UNDRAFTED_KEEPER_ROUND };
 
+/** §2: each team may declare at most this many keepers per season. */
+export const MAX_KEEPERS_PER_TEAM = 4;
+
 // ---------- History across seasons (§2 consecutive-keep escalation) ----------
 
 /**

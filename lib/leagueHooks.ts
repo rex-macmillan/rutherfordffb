@@ -110,6 +110,25 @@ export interface KeeperHelperData extends DeriveResult {
 }
 
 /**
+ * Match the signed-in Sleeper username to a roster in this league.
+ * Returns undefined when the user doesn't own a roster here.
+ */
+export function findMyRosterId(
+  users: LeagueUser[],
+  rosters: Roster[],
+  username: string | null | undefined,
+): number | undefined {
+  if (!username) return undefined;
+  const owner = users.find(
+    (u) =>
+      u.display_name?.toLowerCase() === username.toLowerCase() ||
+      u.metadata?.team_name?.toLowerCase() === username.toLowerCase(),
+  );
+  if (!owner) return undefined;
+  return rosters.find((r) => r.owner_id === owner.user_id)?.roster_id;
+}
+
+/**
  * Pulls every piece of data the Keeper Helper page needs and runs the
  * derivation. Returns `data: undefined` until everything is ready.
  */
