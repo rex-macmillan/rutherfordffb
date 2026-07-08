@@ -18,7 +18,7 @@ export function SheetContent({
   title,
 }: {
   children: ReactNode;
-  side?: "right" | "left" | "bottom";
+  side?: "right" | "left" | "bottom" | "responsive";
   className?: string;
   title?: string;
 }) {
@@ -27,6 +27,9 @@ export function SheetContent({
       ? "right-0 inset-y-0 w-[min(420px,90vw)] border-l data-[state=open]:animate-slide-in-right"
       : side === "left"
       ? "left-0 inset-y-0 w-[min(420px,90vw)] border-r data-[state=open]:animate-slide-in-left"
+      : side === "responsive"
+      ? // Bottom sheet on phones, right drawer on md+.
+        "inset-x-0 bottom-0 max-h-[85vh] rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-slide-in-bottom md:left-auto md:top-0 md:max-h-none md:w-[min(420px,90vw)] md:rounded-none md:border-l md:border-t-0 md:pb-0 md:data-[state=open]:animate-slide-in-right"
       : "inset-x-0 bottom-0 max-h-[85vh] w-full rounded-t-2xl border-t pb-[env(safe-area-inset-bottom)] data-[state=open]:animate-slide-in-bottom";
 
   return (

@@ -121,6 +121,10 @@ export default function AdvisorPage() {
 
   const ready = !leagueLoading && !dataLoading && !!data;
 
+  const sortedAnalysis = result?.perPlayerAnalysis
+    ? [...result.perPlayerAnalysis].sort((a, b) => b.equityRounds - a.equityRounds)
+    : [];
+
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div>
@@ -249,7 +253,49 @@ export default function AdvisorPage() {
                 <CardTitle>Per-player breakdown</CardTitle>
               </CardHeader>
               <CardBody className="p-0">
-                <div className="relative scroll-x-fade">
+                {/* Mobile: stacked rows, everything visible without side-scroll. */}
+                <ul className="divide-y divide-ink-100 sm:hidden">
+                  {sortedAnalysis.map((p) => (
+                    <li key={p.playerId} className="flex items-center gap-3 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate font-medium">{p.name}</span>
+                          <span className="shrink-0 text-xs text-ink-500">
+                            {p.positionalRank}
+                          </span>
+                        </div>
+                        <div className="text-xs text-ink-500">
+                          Keeps at R{p.keeperRound} · typically {p.typicalDraftRound}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold tabular-nums",
+                            p.equityRounds > 0 && "text-emerald-700",
+                            p.equityRounds < 0 && "text-red-700",
+                          )}
+                        >
+                          {p.equityRounds > 0 ? "+" : ""}
+                          {p.equityRounds.toFixed(1)}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded px-2 py-0.5 text-xs font-semibold",
+                            p.verdict === "keep" && "bg-emerald-100 text-emerald-800",
+                            p.verdict === "borderline" && "bg-amber-100 text-amber-800",
+                            p.verdict === "drop" && "bg-red-100 text-red-800",
+                          )}
+                        >
+                          {p.verdict}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Desktop: the full comparison table. */}
+                <div className="relative hidden scroll-x-fade sm:block">
                   <div className="scroll-x no-scrollbar overflow-x-auto">
                 <table className="w-full min-w-[560px] text-sm">
                   <thead className="bg-ink-50 text-xs uppercase text-ink-500">
@@ -263,9 +309,7 @@ export default function AdvisorPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...result.perPlayerAnalysis]
-                      .sort((a, b) => b.equityRounds - a.equityRounds)
-                      .map((p) => (
+                    {sortedAnalysis.map((p) => (
                         <tr key={p.playerId} className="border-t border-ink-100">
                           <td className="px-3 py-2 font-medium">{p.name}</td>
                           <td className="px-3 py-2 text-ink-700">{p.positionalRank}</td>

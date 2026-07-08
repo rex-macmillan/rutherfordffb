@@ -238,7 +238,7 @@ export default function HomePage() {
           <CardBody className="flex flex-wrap items-end gap-4">
             <Filter label="Team">
               <select
-                className="w-full rounded-md border border-ink-300 px-3 py-2 text-sm sm:w-auto"
+                className="min-h-11 w-full rounded-md border border-ink-300 px-3 py-2 text-base sm:min-h-0 sm:w-auto sm:text-sm"
                 value={selectedRoster}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -255,7 +255,7 @@ export default function HomePage() {
             </Filter>
             <Filter label="Position">
               <select
-                className="w-full rounded-md border border-ink-300 px-3 py-2 text-sm sm:w-auto"
+                className="min-h-11 w-full rounded-md border border-ink-300 px-3 py-2 text-base sm:min-h-0 sm:w-auto sm:text-sm"
                 value={selectedPos}
                 onChange={(e) => setSelectedPos(e.target.value)}
               >
@@ -288,29 +288,51 @@ export default function HomePage() {
             const user = data.currentUsers.find((u) => u.user_id === roster?.owner_id);
             const active = selectedRoster === t.rosterId;
             return (
-              <button
+              <div
                 key={t.rosterId}
-                onClick={() =>
-                  setSelectedRoster(active ? "all" : t.rosterId)
-                }
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                  "flex shrink-0 items-stretch overflow-hidden rounded-full border transition-colors",
                   active
-                    ? "border-brand-300 bg-brand-50 text-brand-900"
-                    : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
+                    ? "border-brand-300 bg-brand-50"
+                    : "border-ink-200 bg-white",
                 )}
-                title={`Open ${t.teamName}`}
               >
-                <Avatar avatarId={user?.avatar} alt={t.teamName} size={20} />
-                <span>{t.teamName}</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRoster(active ? "all" : t.rosterId)}
+                  className={cn(
+                    "flex min-h-11 items-center gap-2 pl-3 pr-2 text-sm",
+                    active ? "text-brand-900" : "text-ink-700 hover:bg-ink-50",
+                  )}
+                  title={active ? "Show all teams" : `Filter to ${t.teamName}`}
+                >
+                  <Avatar avatarId={user?.avatar} alt={t.teamName} size={20} />
+                  <span className="whitespace-nowrap">{t.teamName}</span>
+                </button>
                 <Link
                   href={`/team/${t.rosterId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="ml-1 text-xs text-brand-700 underline"
+                  aria-label={`${t.teamName} team details`}
+                  className={cn(
+                    "flex items-center border-l px-2.5",
+                    active
+                      ? "border-brand-200 text-brand-700 hover:bg-brand-100"
+                      : "border-ink-100 text-ink-400 hover:bg-ink-50 hover:text-ink-600",
+                  )}
                 >
-                  details
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
                 </Link>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -356,6 +378,12 @@ export default function HomePage() {
             showDraftDetails={showDraftDetails}
             maxKeepers={MAX_KEEPERS_PER_TEAM}
           />
+
+          {/* Spacer so the floating Save/Clear bar can't hide the last card
+              at full scroll on mobile. */}
+          {(dirty || selectedKeepers.size > 0) && (
+            <div aria-hidden className="h-14 md:hidden" />
+          )}
 
           <div className="fixed right-4 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50 flex gap-2 md:right-5 md:bottom-5">
             {dirty && (

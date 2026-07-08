@@ -90,7 +90,7 @@ export function LeaguePanelTrigger({ className }: { className?: string }) {
           </span>
         </Button>
       </SheetTrigger>
-      <SheetContent title="League panels" side="right">
+      <SheetContent title="League panels" side="responsive">
         <PanelTabsBody />
       </SheetContent>
     </Sheet>

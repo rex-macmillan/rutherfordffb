@@ -45,7 +45,7 @@ const UsernameGate = ({ children }: { children: React.ReactNode }) => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Sleeper username"
-          className="w-full rounded-md border border-ink-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+          className="w-full rounded-md border border-ink-300 px-3 py-2.5 text-base focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 sm:py-2 sm:text-sm"
         />
         <Button
           type="submit"

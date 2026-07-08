@@ -108,6 +108,7 @@ export function SlideUpDemo() {
                 key={p.name}
                 size="sm"
                 variant="secondary"
+                className="h-auto min-h-11 whitespace-normal py-1.5 text-left sm:min-h-0"
                 onClick={() => loadPreset(i)}
               >
                 {p.name}
@@ -153,12 +154,12 @@ export function SlideUpDemo() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-1 py-1 text-right sm:px-3 sm:py-2">
                         <button
                           onClick={() =>
                             setKeepers((prev) => prev.filter((p) => p.id !== k.id))
                           }
-                          className="text-xs text-red-600 hover:underline"
+                          className="min-h-11 rounded-md px-3 text-xs text-red-600 hover:bg-red-50 hover:underline sm:min-h-0 sm:px-1 sm:py-0.5"
                         >
                           remove
                         </button>
@@ -182,12 +183,12 @@ export function SlideUpDemo() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="Keeper name"
-              className="flex-1 rounded border border-ink-300 px-2 py-1 text-sm"
+              className="min-h-11 min-w-0 flex-1 rounded border border-ink-300 px-2 py-1 text-base sm:min-h-0 sm:text-sm"
             />
             <select
               value={newCost}
               onChange={(e) => setNewCost(parseInt(e.target.value))}
-              className="rounded border border-ink-300 px-2 py-1 text-sm"
+              className="min-h-11 rounded border border-ink-300 px-2 py-1 text-base sm:min-h-0 sm:text-sm"
             >
               {Array.from({ length: MAX_DRAFT_ROUND }, (_, i) => i + 1).map(
                 (r) => (
@@ -197,7 +198,7 @@ export function SlideUpDemo() {
                 ),
               )}
             </select>
-            <Button size="sm" onClick={addKeeper}>
+            <Button size="sm" className="min-h-11 sm:min-h-0" onClick={addKeeper}>
               Add keeper
             </Button>
           </div>
@@ -207,7 +208,7 @@ export function SlideUpDemo() {
           <div className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
             Traded-away rounds
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5 sm:gap-1">
             {Array.from({ length: MAX_DRAFT_ROUND }, (_, i) => i + 1).map((r) => {
               const active = missing.has(r);
               return (
@@ -215,7 +216,7 @@ export function SlideUpDemo() {
                   key={r}
                   onClick={() => toggleMissing(r)}
                   className={cn(
-                    "rounded border px-2 py-1 text-xs font-medium transition-colors",
+                    "min-h-11 min-w-11 rounded border px-2 py-1 text-xs font-medium transition-colors sm:min-h-0 sm:min-w-0",
                     active
                       ? "border-red-200 bg-red-100 text-red-800"
                       : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",

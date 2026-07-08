@@ -57,6 +57,20 @@ const SortIcon = ({ active, asc }: { active: boolean; asc: boolean }) => (
   </span>
 );
 
+/**
+ * Sort presets for the mobile card list — each maps to the same sortKey the
+ * desktop column headers use, with a sensible fixed direction for thumbs.
+ * (valueScore sorting is internally inverted, so asc:true = best value first.)
+ */
+const MOBILE_SORTS: { key: SortKey; label: string; asc: boolean }[] = [
+  { key: "pprRank", label: "Overall rank", asc: true },
+  { key: "valueScore", label: "Keeper value", asc: true },
+  { key: "keeperRound", label: "Keeper round", asc: true },
+  { key: "name", label: "Name A–Z", asc: true },
+  { key: "position", label: "Position", asc: true },
+  { key: "currentTeam", label: "Current roster", asc: true },
+];
+
 const PlayerTable: React.FC<Props> = ({
   players,
   selected,
@@ -152,9 +166,131 @@ const PlayerTable: React.FC<Props> = ({
   const headFrozen = "sticky top-0 z-20 bg-ink-100";
   const bodyFrozen = "sticky z-10 bg-inherit";
 
+  const isDisabled = (p: PlayerRowData) => {
+    if (p.rosterId === -1) return true;
+    if (selected.has(p.playerId)) return false;
+    const sameTeamCount = Array.from(selected).filter((pid) => {
+      const pl = players.find((pp) => pp.playerId === pid);
+      return pl && pl.rosterId === p.rosterId;
+    }).length;
+    return sameTeamCount >= maxKeepers;
+  };
+
+  const mobileSortValue =
+    MOBILE_SORTS.find((s) => s.key === sortKey)?.key ?? "pprRank";
+
   return (
-    <div className="relative rounded-xl border border-ink-200 bg-white shadow-sm scroll-x-fade">
-      <div className="scroll-x no-scrollbar overflow-x-auto rounded-xl">
+    <div className="overflow-hidden rounded-xl border border-ink-200 bg-white shadow-sm">
+      {/* ---- Mobile: sort bar + tappable card list (no horizontal scroll) ---- */}
+      <div className="md:hidden">
+        <div className="flex items-center justify-between gap-2 border-b border-ink-200 bg-ink-50/60 px-3 py-2">
+          <label className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-ink-500">
+            Sort
+            <select
+              className="rounded-md border border-ink-300 bg-white px-2 py-1.5 text-base font-normal normal-case text-ink-900"
+              value={mobileSortValue}
+              onChange={(e) => {
+                const preset = MOBILE_SORTS.find((s) => s.key === e.target.value);
+                if (!preset) return;
+                setSortKey(preset.key);
+                setAsc(preset.asc);
+              }}
+            >
+              {MOBILE_SORTS.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-xs tabular-nums text-ink-400">
+            {players.length} players
+          </span>
+        </div>
+        <ul className="divide-y divide-ink-100">
+          {sortedPlayers.map((p) => {
+            const disabled = isDisabled(p);
+            const isSelected = selected.has(p.playerId);
+            const slot = adjustedMap.get(p.playerId);
+            return (
+              <li key={p.playerId} className={`row-pos-${p.position}`}>
+                <label
+                  className={cn(
+                    "flex min-h-[56px] cursor-pointer items-center gap-3 px-3 py-2",
+                    isSelected && "ring-1 ring-inset ring-emerald-300",
+                    disabled && !isSelected && "opacity-50",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={disabled}
+                    onChange={() => toggle(p.playerId)}
+                    className="h-5 w-5 shrink-0 accent-brand-600 disabled:cursor-not-allowed"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-ink-900">
+                      {p.name}
+                      {p.prevKeeper && (
+                        <span
+                          title={p.starReason || "Keeper cost advanced"}
+                          className="ml-1 text-amber-500"
+                        >
+                          *
+                        </span>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-ink-500">
+                      {p.position}
+                      {p.posRank != null ? p.posRank : ""} · {p.teamAbbr || "FA"}
+                      {p.pprRank != null && <> · #{p.pprRank}</>}
+                      {p.currentTeam && <> · {p.currentTeam}</>}
+                    </span>
+                    {showDraftDetails && p.rosterId !== -1 && (
+                      <span className="block truncate text-xs text-ink-400">
+                        {p.round == null
+                          ? "Undrafted last year"
+                          : `Drafted R${p.round} (${p.pickNo ?? "?"})`}
+                        {p.previousTeam ? ` by ${p.previousTeam}` : ""}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span
+                      className={cn(
+                        "inline-block rounded-md px-2 py-0.5 text-sm font-semibold tabular-nums",
+                        isSelected
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-ink-900/5 text-ink-700",
+                      )}
+                    >
+                      {p.rosterId === -1
+                        ? "—"
+                        : p.keeperRound != null
+                        ? `R${p.keeperRound}`
+                        : "N/A"}
+                    </span>
+                    {slot != null && slot !== p.keeperRound && (
+                      <span className="block text-xs font-semibold text-emerald-700">
+                        → slot R{slot}
+                      </span>
+                    )}
+                    {p.valueScore != null && (
+                      <span className="block text-xs tabular-nums text-ink-400">
+                        val {p.valueScore.toFixed(1)}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      {/* ---- Desktop: full sortable table with frozen Keep + Player columns ---- */}
+      <div className="relative hidden scroll-x-fade md:block">
+        <div className="scroll-x no-scrollbar overflow-x-auto rounded-xl">
         <table className="w-full min-w-[760px] border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-ink-100">
             <tr>
@@ -177,13 +313,7 @@ const PlayerTable: React.FC<Props> = ({
           </thead>
           <tbody>
             {sortedPlayers.map((p) => {
-              const sameTeamCount = Array.from(selected).filter((pid) => {
-                const pl = players.find((pp) => pp.playerId === pid);
-                return pl && pl.rosterId === p.rosterId;
-              }).length;
-              const disabled =
-                p.rosterId === -1 ||
-                (!selected.has(p.playerId) && sameTeamCount >= maxKeepers);
+              const disabled = isDisabled(p);
               return (
                 <tr
                   key={p.playerId}
@@ -250,6 +380,7 @@ const PlayerTable: React.FC<Props> = ({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
