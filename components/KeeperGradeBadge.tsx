@@ -1,5 +1,6 @@
 import { cn } from "../lib/cn";
 import type { KeeperGrade } from "../lib/keeperValue";
+import { Tooltip } from "./ui/Tooltip";
 
 const TONE_CLASSES: Record<KeeperGrade["tone"], string> = {
   emerald: "bg-emerald-100 text-emerald-800",
@@ -24,12 +25,13 @@ export function KeeperGradeBadge({
   className?: string;
 }) {
   if (!grade) return <span className="text-ink-400">—</span>;
-  return (
+
+  const badge = (
     <span
-      title={hint}
+      tabIndex={hint ? 0 : undefined}
       className={cn(
-        "inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium",
-        hint && "cursor-help",
+        "inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium outline-none",
+        hint && "cursor-help focus-visible:ring-2 focus-visible:ring-brand-500/40",
         TONE_CLASSES[grade.tone],
         className,
       )}
@@ -37,4 +39,8 @@ export function KeeperGradeBadge({
       {grade.label}
     </span>
   );
+
+  if (!hint) return badge;
+
+  return <Tooltip content={hint}>{badge}</Tooltip>;
 }

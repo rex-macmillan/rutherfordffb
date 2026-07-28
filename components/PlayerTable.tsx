@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { assignKeeperSlots } from "../lib/keepers";
 import type { KeeperGrade } from "../lib/keeperValue";
 import { KeeperGradeBadge } from "./KeeperGradeBadge";
+import { Tooltip } from "./ui/Tooltip";
 import { cn } from "../lib/cn";
 
 interface PlayerRowData {
@@ -236,12 +237,14 @@ const PlayerTable: React.FC<Props> = ({
                     <span className="block truncate font-medium text-ink-900">
                       {p.name}
                       {p.prevKeeper && (
-                        <span
-                          title={p.starReason || "Keeper cost advanced"}
-                          className="ml-1 text-amber-500"
-                        >
-                          *
-                        </span>
+                        <Tooltip content={p.starReason || "Keeper cost advanced"}>
+                          <span
+                            tabIndex={0}
+                            className="ml-1 cursor-help text-amber-500 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                          >
+                            *
+                          </span>
+                        </Tooltip>
                       )}
                     </span>
                     <span className="block truncate text-xs text-ink-500">
@@ -368,12 +371,14 @@ const PlayerTable: React.FC<Props> = ({
                   <td className="px-3 py-2 font-medium">
                     {p.rosterId === -1 ? "-" : p.keeperRound ?? "N/A"}
                     {p.prevKeeper && (
-                      <span
-                        title={p.starReason || "Keeper cost advanced"}
-                        className="ml-1 cursor-help text-amber-500"
-                      >
-                        *
-                      </span>
+                      <Tooltip content={p.starReason || "Keeper cost advanced"}>
+                        <span
+                          tabIndex={0}
+                          className="ml-1 cursor-help text-amber-500 outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                        >
+                          *
+                        </span>
+                      </Tooltip>
                     )}
                   </td>
                   <td className="px-3 py-2">

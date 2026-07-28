@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import Layout from "../components/Layout";
 import UsernameGate from "../components/UsernameGate";
+import { TooltipProvider } from "../components/ui/Tooltip";
 import { IdentityProvider } from "../lib/identity";
 import "../styles/globals.css";
 
@@ -38,11 +39,13 @@ function MyApp({ Component, pageProps }: AppProps) {
           <meta name="apple-mobile-web-app-title" content="Rutherford FFB" />
           <link rel="icon" href="/favicon.ico" />
         </Head>
-        <UsernameGate>
-          <Layout>
-            <Component {...pageProps} />
-          </Layout>
-        </UsernameGate>
+        <TooltipProvider>
+          <UsernameGate>
+            <Layout>
+              <Component {...pageProps} />
+            </Layout>
+          </UsernameGate>
+        </TooltipProvider>
       </IdentityProvider>
     </QueryClientProvider>
   );
