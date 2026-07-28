@@ -19,6 +19,13 @@ import {
   computeKeeperCost,
   UNDRAFTED_KEEPER_ROUND,
 } from "./keepers";
+import { overallPickNumber } from "./draftSlots";
+import {
+  KeeperGrade,
+  computeKeeperSurplus,
+  describeKeeperValue,
+  gradeKeeperSurplus,
+} from "./keeperValue";
 
 export interface PlayerRow {
   playerId: string;
@@ -38,7 +45,14 @@ export interface PlayerRow {
   pprRank: number | null;
   /** Position-specific rank within the league pool, e.g. RB5 / TE7 / QB12. */
   posRank?: number | null;
-  valueScore?: number | null;
+  /** Overall pick number this player's keeper cost consumes. */
+  keeperPickSlot?: number | null;
+  /** Surplus in FantasyCalc points. Sort key behind the grade. */
+  keeperSurplus?: number | null;
+  /** Bucketed surplus — this is what the UI shows. */
+  keeperGrade?: KeeperGrade | null;
+  /** Tooltip sentence explaining the grade in picks. */
+  keeperValueHint?: string;
 }
 
 export interface TeamOption {
@@ -55,6 +69,20 @@ interface DeriveInput {
   chainDraftPicks: DraftPick[][]; // oldest-first, used for history
   players: PlayersBlob;
   fcRanks: Map<string, number>;
+  /** sleeperId → FantasyCalc value, for the keeper value model. */
+  fcValues?: Map<string, number>;
+  /** All FantasyCalc values, descending. Without it, grades stay null. */
+  valueCurve?: number[];
+  /**
+   * rosterId → draft slot (1..teamCount). Drives the pick number a keeper
+   * costs, which is what separates a 1.01 keeper from a 1.12 one. When absent
+   * every team is assumed to pick mid-round.
+   */
+  draftSlotByRoster?: Map<number, number>;
+  /** True while the draft order is still the provisional reverse-standings default. */
+  slotsProvisional?: boolean;
+  /** Snake drafts reverse on even rounds. */
+  snakeDraft?: boolean;
   tradedPicks: TradedPick[];
   currentSeason: string;
   /** Cap for FC ranks we'll include for free agents. */
@@ -85,135 +113,6 @@ function playerName(meta: SleeperPlayer | undefined, fallbackId: string) {
     `${meta?.first_name ?? ""} ${meta?.last_name ?? ""}`.trim();
   const named = base || fallbackId;
   return meta?.years_exp === 0 ? `${named} (R)` : named;
-}
-
-/**
- * Approximate typical draft round given a player's positional rank.
- *
- * Anchored to ADP heuristics in a 12-team 1QB PPR snake draft. Each row is
- * [maxPositionalRank, typicalRound]. First matching row wins.
- */
-const MARKET_ROUND_TABLE: Record<string, Array<[number, number]>> = {
-  RB: [
-    [6, 1],
-    [12, 2],
-    [20, 4],
-    [30, 8],
-    [42, 11],
-    [60, 14],
-  ],
-  WR: [
-    [8, 1.5],
-    [15, 2.5],
-    [24, 4],
-    [36, 7],
-    [48, 11],
-    [70, 14],
-  ],
-  TE: [
-    [3, 3.5],
-    [6, 5],
-    [10, 7],
-    [15, 10],
-    [20, 14],
-  ],
-  QB: [
-    [6, 6],
-    [12, 10],
-    [18, 13],
-    [24, 15],
-  ],
-};
-
-/**
- * Bonus rounds added to equity for players at scarce positions. Captures the
- * fact that TE and QB starters are much harder to find than RB/WR depth.
- */
-const SCARCITY_BONUS: Record<string, Array<[number, number]>> = {
-  TE: [
-    [3, 3],
-    [6, 2],
-    [10, 1.5],
-    [14, 1],
-  ],
-  QB: [
-    [6, 1.5],
-    [12, 1],
-    [18, 0.5],
-  ],
-  RB: [],
-  WR: [],
-};
-
-const TIER_HALF_LIFE: Record<string, number> = {
-  RB: 18,
-  WR: 18,
-  TE: 8,
-  QB: 12,
-};
-
-function lookup(
-  table: Array<[number, number]>,
-  posRank: number,
-  fallback: number,
-): number {
-  for (const [maxRank, value] of table) {
-    if (posRank <= maxRank) return value;
-  }
-  return fallback;
-}
-
-/**
- * Tier weight on (0.15..1.0]. Top of position is worth the most; depth tier
- * is heavily discounted. This is what stops a "barely-startable" RB30 from
- * out-scoring a real RB5 just because the equity arithmetic looks similar.
- */
-function tierWeight(posRank: number, position: string): number {
-  const hl = TIER_HALF_LIFE[position] ?? 18;
-  return Math.max(0.15, 1 - (posRank - 1) / (2.2 * hl));
-}
-
-/**
- * Loose fallback when we don't have a positional rank. Maps overall PPR
- * rank to a rough position rank based on typical PPR rank density per
- * position. Only used when posRank wasn't provided.
- */
-function approxPosRank(overallRank: number, position: string): number {
-  const factor: Record<string, number> = {
-    QB: 0.13,
-    TE: 0.12,
-    RB: 0.45,
-    WR: 0.45,
-  };
-  return Math.max(1, Math.round(overallRank * (factor[position] ?? 0.45)));
-}
-
-/**
- * Value score for the Keeper Helper table.
- *
- * Components:
- *   - market round approximated from POSITIONAL rank (not overall PPR)
- *   - equity = keeperRound - market (positive = below market = good keep)
- *   - tier weight pulls down depth-tier players even if their equity looks fat
- *   - scarcity bonus rewards top-of-position TE / QB given how thin those
- *     positions get in 12-team drafts
- *
- * Score = (equity + scarcityBonus) * tierWeight
- */
-export function computeValueScore(
-  pprRank: number | null,
-  keeperCost: number | null,
-  position?: string,
-  posRank?: number | null,
-): number | null {
-  if (pprRank == null || keeperCost == null) return null;
-  const pos = position ?? "WR";
-  const effectivePosRank = posRank ?? approxPosRank(pprRank, pos);
-  const market = lookup(MARKET_ROUND_TABLE[pos] ?? MARKET_ROUND_TABLE.WR, effectivePosRank, 17);
-  const equity = keeperCost - market;
-  const bonus = lookup(SCARCITY_BONUS[pos] ?? [], effectivePosRank, 0);
-  const weight = tierWeight(effectivePosRank, pos);
-  return (equity + bonus) * weight;
 }
 
 function teamNameMap(users: LeagueUser[], rosters: Roster[]) {
@@ -270,8 +169,19 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
     chainDraftPicks,
     players,
     fcRanks,
+    fcValues,
+    valueCurve,
+    draftSlotByRoster,
+    slotsProvisional = false,
+    snakeDraft = true,
     freeAgentRankCutoff = 200,
   } = input;
+
+  const teamCount = currentRosters.length;
+  // Without a known slot, assume the team picks mid-round — the least wrong
+  // single guess, and it keeps grades available before the order is set.
+  const slotFor = (rosterId: number) =>
+    draftSlotByRoster?.get(rosterId) ?? Math.ceil(teamCount / 2);
 
   // Previous-season name lookup.
   const prevRosterToName = teamNameMap(previousUsers, previousRosters);
@@ -345,10 +255,12 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
           ? `Keeper cost advanced due to consecutive keeps (was ${baseCostFromRound}, now ${keeperCost})`
           : undefined,
         rosterId: r.roster_id,
-        // valueScore is filled in a second pass below, once we know each
-        // player's positional rank across the full pool.
-        valueScore: null,
+        // posRank and the keeper value fields are filled in a second pass
+        // below, once every row exists.
         posRank: null,
+        keeperPickSlot: null,
+        keeperSurplus: null,
+        keeperGrade: null,
       });
     });
   });
@@ -378,24 +290,42 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
       rosterId: -1,
       pprRank: rank,
       posRank: null,
-      valueScore: null,
+      keeperPickSlot: null,
+      keeperSurplus: null,
+      keeperGrade: null,
     });
   });
 
-  // Second pass — now that we have every player, compute positional rank
-  // across the whole pool and refresh the value score for every rostered
-  // player using that positional rank.
+  // Second pass — positional ranks need the whole pool to be present, and the
+  // keeper value model needs each row's keeper cost, so both land here.
   const posRanks = buildPositionalRanks(rows);
+  const topValue = valueCurve?.[0] ?? 0;
   rows.forEach((r) => {
     r.posRank = posRanks.get(r.playerId) ?? null;
-    if (r.rosterId >= 0) {
-      r.valueScore = computeValueScore(
-        r.pprRank,
-        r.keeperRound,
-        r.position,
-        r.posRank,
-      );
-    }
+    if (r.rosterId < 0 || r.keeperRound == null) return;
+    if (!valueCurve?.length || !teamCount) return;
+
+    const pickSlot = overallPickNumber(
+      r.keeperRound,
+      slotFor(r.rosterId),
+      teamCount,
+      snakeDraft,
+    );
+    r.keeperPickSlot = pickSlot;
+    r.keeperSurplus = computeKeeperSurplus({
+      playerValue: fcValues?.get(r.playerId) ?? null,
+      playerRank: r.pprRank,
+      pickSlot,
+      valueCurve,
+    });
+    r.keeperGrade = gradeKeeperSurplus(r.keeperSurplus, topValue);
+    r.keeperValueHint = describeKeeperValue({
+      grade: r.keeperGrade,
+      playerRank: r.pprRank,
+      pickSlot,
+      teamCount,
+      provisionalSlot: slotsProvisional,
+    });
   });
 
   return { rows, teams, history, keeperCostByPid, prevRosterByPid };

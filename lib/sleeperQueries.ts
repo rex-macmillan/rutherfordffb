@@ -14,6 +14,7 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   DraftPick,
+  FCData,
   League,
   LeagueUser,
   NFLState,
@@ -23,7 +24,7 @@ import {
   TradedPick,
   getDraft,
   getDraftPicks,
-  getFCRanks,
+  getFCData,
   getLeague,
   getLeagueDrafts,
   getLeagueUsers,
@@ -142,12 +143,24 @@ export function usePlayers() {
   });
 }
 
+/**
+ * One fetch, two views. `useFCRanks` and `useFCData` share a query key so the
+ * FantasyCalc payload is fetched once and each hook selects the slice it needs.
+ */
+const FC_QUERY = {
+  queryKey: ["fc", "data"],
+  queryFn: getFCData,
+  staleTime: 15 * MINUTE,
+} as const;
+
+/** sleeperId → overall rank. */
 export function useFCRanks() {
-  return useQuery({
-    queryKey: ["fc", "ranks"],
-    queryFn: getFCRanks,
-    staleTime: 15 * MINUTE,
-  });
+  return useQuery({ ...FC_QUERY, select: (d: FCData) => d.ranks });
+}
+
+/** Ranks + values + the descending value curve, for the keeper value model. */
+export function useFCData() {
+  return useQuery(FC_QUERY);
 }
 
 export function useWinnersBracket(leagueId: string | undefined) {

@@ -19,6 +19,11 @@
 import { useMemo } from "react";
 import { useCurrentLeague } from "./leagueHooks";
 import {
+  draftOrderIsOfficial,
+  resolveDraftSlotMap,
+  rosterSlotMap,
+} from "./draftSlots";
+import {
   useDraft,
   useLeague,
   useLeagueDrafts,
@@ -263,4 +268,54 @@ export function useDraftSelectionOrder(): DraftOrderResult {
     isLoading,
     error,
   };
+}
+
+export interface ResolvedDraftSlots {
+  /** rosterId → draft slot (1..teamCount). Empty until rosters load. */
+  slotByRoster: Map<number, number>;
+  teamCount: number;
+  /** True while this is still the reverse-standings default, not Sleeper's locked order. */
+  provisional: boolean;
+  snake: boolean;
+  isLoading: boolean;
+}
+
+/**
+ * Which pick slot each team holds in the upcoming draft.
+ *
+ * The keeper value model needs this: a 1st-round keeper costs pick 1 for the
+ * team at slot 1 and pick 12 for the team at slot 12, which are very different
+ * prices. Falls back to the §4 reverse-standings selection order (flagged
+ * `provisional`) until the commissioner locks the real order in Sleeper.
+ */
+export function useResolvedDraftSlots(): ResolvedDraftSlots {
+  const { league } = useCurrentLeague();
+  const rostersQ = useRosters(league?.league_id);
+  const draftsQ = useLeagueDrafts(league?.league_id);
+  const draftQ = useDraft(draftsQ.data?.[0]?.draft_id);
+  const selOrder = useDraftSelectionOrder();
+
+  const isLoading =
+    rostersQ.isLoading || draftsQ.isLoading || draftQ.isLoading || selOrder.isLoading;
+
+  return useMemo(() => {
+    const rosterIds = rostersQ.data?.map((r) => r.roster_id) ?? [];
+    const orderIsOfficial = draftOrderIsOfficial(draftQ.data);
+    const { slotMap, provisional } = resolveDraftSlotMap({
+      sleeperSlotMap:
+        (draftQ.data?.slot_to_roster_id as Record<string, number>) ||
+        (draftQ.data?.draft_order as Record<string, number>) ||
+        {},
+      orderIsOfficial,
+      selectionRows: selOrder.rows,
+      rosterIds,
+    });
+    return {
+      slotByRoster: rosterSlotMap(slotMap),
+      teamCount: rosterIds.length,
+      provisional,
+      snake: (draftQ.data?.type ?? "snake") !== "linear",
+      isLoading,
+    };
+  }, [rostersQ.data, draftQ.data, selOrder.rows, isLoading]);
 }

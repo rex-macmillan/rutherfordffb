@@ -7,6 +7,51 @@
  */
 
 /**
+ * Sleeper ALWAYS returns a populated `slot_to_roster_id`, so its presence says
+ * nothing about whether the commissioner has actually set the order. The real
+ * signal is `draft_order` being non-null, or the draft having started.
+ */
+export function draftOrderIsOfficial(
+  draft: { draft_order?: unknown; status?: string } | null | undefined,
+): boolean {
+  if (!draft) return false;
+  return (
+    draft.draft_order != null ||
+    draft.status === "drafting" ||
+    draft.status === "complete"
+  );
+}
+
+/**
+ * Overall pick number for a round + draft slot. Snake drafts reverse direction
+ * on even rounds, so slot 1 picks last in round 2; linear drafts never reverse.
+ *
+ * This is what lets the keeper value model tell a 1.01 keeper (pick 1) from a
+ * 1.12 keeper (pick 12) — two very different transactions that a round number
+ * alone cannot distinguish.
+ */
+export function overallPickNumber(
+  round: number,
+  slot: number,
+  teamCount: number,
+  snake = true,
+): number {
+  const posInRound = snake && round % 2 === 0 ? teamCount - slot + 1 : slot;
+  return (round - 1) * teamCount + posInRound;
+}
+
+/** Invert a slot→roster map into roster→slot. */
+export function rosterSlotMap(
+  slotMap: Record<string, number>,
+): Map<number, number> {
+  const out = new Map<number, number>();
+  Object.entries(slotMap).forEach(([slot, rid]) => {
+    out.set(Number(rid), parseInt(slot, 10));
+  });
+  return out;
+}
+
+/**
  * Map a resolved selection order onto draft slots 1..N: the team that selects
  * first defaults to slot 1, the team that selects last to the final slot. This
  * is the provisional default the board shows before managers lock real slots.

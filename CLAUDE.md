@@ -40,9 +40,10 @@ supabase/     — schema.sql
 /teams     Team directory → /team/[rosterId]
 /rules     Rulebook + chat + slide-up demo
 /advisor, /trade-evaluator, /playoffs — in the More sheet / app menu
+                                       (/advisor + /trade-evaluator are flagged off — see Feature flags)
 ```
 
-[lib/navLinks.ts](lib/navLinks.ts) is the single source of truth for navigation. `core: true` links (Home, Keepers, Draft) show in the mobile bottom tab bar ([components/MobileTabBar.tsx](components/MobileTabBar.tsx)); everything else lives in the More sheet, the top-bar menu ([components/AppMenu.tsx](components/AppMenu.tsx)), the desktop inline nav, and the Home quick-link grid. Old routes `/draftboard` and `/draft-order` redirect to `/draft` in [next.config.js](next.config.js).
+[lib/navLinks.ts](lib/navLinks.ts) is the single source of truth for navigation. `core: true` links (Home, Keepers, Draft) show in the mobile bottom tab bar ([components/MobileTabBar.tsx](components/MobileTabBar.tsx)); everything else lives in the More sheet, the top-bar menu ([components/AppMenu.tsx](components/AppMenu.tsx)), the desktop inline nav, and the Home quick-link grid. A link with `enabled: false` is filtered out of the exported `NAV_LINKS`, so every consumer hides it at once. Old routes `/draftboard` and `/draft-order` redirect to `/draft` in [next.config.js](next.config.js).
 
 ### Data flow (Keeper Helper as the canonical example — [pages/keepers.tsx](pages/keepers.tsx))
 
@@ -52,12 +53,16 @@ IdentityProvider (cookie)
       → useSleeperUser + useNFLState + useUserLeagues
   → useKeeperHelperData(league, season)
       → useRosters + useLeagueUsers + useTradedPicks + usePlayers +
-        useFCRanks + previous-league equivalents + useLeagueChainDraftPicks
+        useFCData + previous-league equivalents + useLeagueChainDraftPicks
+      → useResolvedDraftSlots()          // which pick slot each team holds
       → derivePlayerRows(...)            // pure, in lib/derivePlayerRows.ts
+          → computeKeeperSurplus + gradeKeeperSurplus  // lib/keeperValue.ts
       → computeDraftDeltas(...)          // pure, in lib/keepers.ts
   → useLeagueKeepers(leagueId)           // Supabase OR localStorage
   → assignKeeperSlots(...)               // pure, in lib/keepers.ts
 ```
+
+`useCurrentLeague` lives in [lib/currentLeague.ts](lib/currentLeague.ts), not `leagueHooks.ts`, so that [lib/draftOrder.ts](lib/draftOrder.ts) can use it without an import cycle (leagueHooks depends on draftOrder for `useResolvedDraftSlots`). `leagueHooks` re-exports it, so `import { useCurrentLeague } from "../lib/leagueHooks"` still works everywhere.
 
 Pages stay tiny because every step above is a hook or a pure function. **Never** put a `useEffect` with a 100-line fetch chain in a page — add a query in [lib/sleeperQueries.ts](lib/sleeperQueries.ts) or a composite hook in [lib/leagueHooks.ts](lib/leagueHooks.ts).
 
@@ -73,6 +78,32 @@ The four load-bearing rules each live in one module, exercised by tests:
 - **§6 traded-pick deltas** → [lib/keepers.ts](lib/keepers.ts) (`computeDraftDeltas`)
 
 All four are exercised by tests in [lib/__tests__/keepers.test.ts](lib/__tests__/keepers.test.ts) — including the multi-keeper slide-up example from §6.
+
+### Keeper value model
+
+[lib/keeperValue.ts](lib/keeperValue.ts) answers "is this player worth a keeper slot?" It is a **judgment model, not a league rule** — nothing in the rulebook constrains it, and it is the right place to tune if the rankings ever look wrong.
+
+```
+surplus = value(player) − value(best player expected on the board at the pick it costs)
+```
+
+Both terms are FantasyCalc redraft trade values for this exact league shape (12-team, 1QB, PPR), so two things come for free and must **not** be re-added by hand:
+
+- **Non-linearity.** Value drops ~229 points per pick across round 1 but only ~27 per pick in rounds 8-10. A round saved early is worth ~8x one saved late.
+- **Positional scarcity.** The values are generated for a 1QB league, so premium TE/QB scarcity is already priced in.
+
+The pick slot matters, not just the round: a 1st-round keeper costs pick 1 for the team at slot 1 and pick 12 for the team at slot 12. `useResolvedDraftSlots` in [lib/draftOrder.ts](lib/draftOrder.ts) resolves that, falling back to the §4 reverse-standings order (flagged `provisional`) until the commissioner locks the real order in Sleeper.
+
+The UI shows a **grade only** ([components/KeeperGradeBadge.tsx](components/KeeperGradeBadge.tsx)), never the raw number — FantasyCalc points are meaningless to a human. Grade cutoffs are fractions of the #1 asset's value rather than absolute points, so they survive FantasyCalc rescaling. Sorting still uses the underlying `keeperSurplus`.
+
+Two results that look wrong but are correct, and should not be "fixed":
+
+- The consensus #1 overall scores only a small surplus when his team picks at 1.01. If you hold the first pick you could simply draft him, so keeping him saves almost nothing.
+- Most rostered players grade as "A bit rich" or "Overpay". Undrafted players default to a 6th-round keeper cost (§2), which is far more than a waiver-wire player is worth. Only ~30 players in a 12-team league are genuinely viable keepers.
+
+Tests: [lib/__tests__/keeperValue.test.ts](lib/__tests__/keeperValue.test.ts) locks in the scenarios that motivated the model, including 1.01-vs-1.12 and "an elite 1st-round keeper must outrank a late-round bargain".
+
+**This replaced a round-arithmetic model** (`(keeperRound − marketRound + scarcityBonus) × tierWeight` with hand-tuned per-position tables). It was structurally broken: rounds are ordinal rather than a value scale, so late-round bargains outranked elite keepers, and any player priced at his own market round scored exactly zero — with the tier weight being a multiplier, no amount of talent could rescue it. Don't reintroduce it.
 
 ### Identity
 
@@ -112,7 +143,7 @@ When adding a new panel tab, build a body component in [components/panels/](comp
 
 ### Team detail pages
 
-[pages/team/[rosterId].tsx](pages/team/[rosterId].tsx) is the per-roster drill-down: avatar + owner name, saved keepers, draft pick deltas, roster broken out by position with keeper costs and value scores. Reachable from the [/teams](pages/teams.tsx) directory and the Home your-team card.
+[pages/team/[rosterId].tsx](pages/team/[rosterId].tsx) is the per-roster drill-down: avatar + owner name, saved keepers, draft pick deltas, roster broken out by position with keeper costs and value grades. Reachable from the [/teams](pages/teams.tsx) directory and the Home your-team card.
 
 ### AI features (Anthropic)
 
@@ -121,7 +152,19 @@ Server-side only. The Anthropic client lives in [lib/anthropic.ts](lib/anthropic
 **Setup:**
 1. Get an API key at console.anthropic.com.
 2. Add `ANTHROPIC_API_KEY=sk-ant-...` to `.env.local`.
-3. Restart `npm run dev`. The `/advisor`, `/trade-evaluator`, rules chat, and draft recap features come online.
+3. Restart `npm run dev`. Rules chat and draft recap come online. `/advisor` and `/trade-evaluator` additionally need their feature flags (below).
+
+**Feature flags:**
+
+Anthropic bills per request, so the two heaviest features are dark by default. [lib/featureFlags.ts](lib/featureFlags.ts) reads `NEXT_PUBLIC_ENABLE_ADVISOR` and `NEXT_PUBLIC_ENABLE_TRADE_EVALUATOR` (`"true"` or `"1"` to enable) and gates three places, all of which must stay in sync:
+
+1. The nav entry in [lib/navLinks.ts](lib/navLinks.ts) (`enabled:`), which hides the link everywhere.
+2. `getServerSideProps` in the page, which returns `notFound` so the URL 404s.
+3. The top of the API route, which 404s **before** the `!anthropic` check so a stray POST can never bill.
+
+Because `NEXT_PUBLIC_` values are inlined into the client bundle at build time, changing a flag requires a rebuild (or a `npm run dev` restart) — and on Vercel, a redeploy after editing the env var.
+
+The flags exist for cost control, not correctness: the feature code is untouched and fully working. Delete the three gates to ship a feature for real.
 
 **Prompt architecture:**
 
@@ -152,6 +195,8 @@ Rules chat uses `anthropic.messages.stream(...)` and writes text deltas to the r
 - Don't write a new `useEffect` data-fetching block in a page. Add a query hook.
 - Don't inline the round-cost mapping. Import `KEEPER_COST_TABLE` or `calculateKeeperRound` from `lib/keeperCostTable.ts`.
 - Don't duplicate keeper-math logic — `assignKeeperSlots` is the only function that decides which round a keeper occupies.
+- Don't measure keeper value in rounds, and don't add per-position market/scarcity/tier tables. Use `computeKeeperSurplus` from `lib/keeperValue.ts`; the FantasyCalc value curve already carries the draft's non-linearity and positional scarcity.
+- Don't show the raw `keeperSurplus` number in the UI. It's in FantasyCalc points, which mean nothing to a human — render `KeeperGradeBadge` and sort by the number behind it.
 - Don't hardcode `username = "rex-macmillan"`. Use `useIdentity()`.
 - Don't write directly to `localStorage` for keeper data. Use `useLeagueKeepers`.
 - Don't add a new bespoke `.module.css` file. Use Tailwind classes; if a pattern is repeated, extract a small component in `components/ui/`.
@@ -163,7 +208,7 @@ Rules chat uses `anthropic.messages.stream(...)` and writes text deltas to the r
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **rutherfordffb** (409 symbols, 1004 relationships, 32 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **rutherfordffb** (447 symbols, 1098 relationships, 35 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

@@ -1,10 +1,22 @@
+import type { GetServerSideProps } from "next";
 import { useMemo, useState } from "react";
 import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
 import { useCurrentLeague, useKeeperHelperData } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
+import { FEATURES } from "../lib/featureFlags";
 import { cn } from "../lib/cn";
+
+/**
+ * Every run of this page bills a per-request Anthropic call, so the route 404s
+ * unless NEXT_PUBLIC_ENABLE_ADVISOR is set. Turn it on in `.env.local` to work
+ * on the feature. The nav link is hidden by the same flag in lib/navLinks.ts.
+ */
+export const getServerSideProps: GetServerSideProps = async () => {
+  if (!FEATURES.advisor) return { notFound: true };
+  return { props: {} };
+};
 
 interface AnalyzedPlayer {
   playerId: string;
@@ -77,7 +89,9 @@ export default function AdvisorPage() {
         pprRank: p.pprRank,
         keeperRound: p.keeperRound,
         prevKeeper: p.prevKeeper,
-        valueScore: p.valueScore,
+        keeperSurplus: p.keeperSurplus,
+        keeperGrade: p.keeperGrade?.label,
+        keeperPickSlot: p.keeperPickSlot,
       });
 
       const roster = data.rows

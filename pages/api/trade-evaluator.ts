@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { anthropic, MODELS, notConfiguredResponse, unwrapToolInput } from "../../lib/anthropic";
+import { FEATURES, featureDisabledResponse } from "../../lib/featureFlags";
 import { systemBlocks } from "../../lib/aiPrompts";
 
 interface SidePlayer {
@@ -175,6 +176,11 @@ export default async function handler(
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).end();
+  }
+  // Flag check comes before anything that could reach the paid API.
+  if (!FEATURES.tradeEvaluator) {
+    const r = featureDisabledResponse();
+    return res.status(r.status).json(r.body);
   }
   if (!anthropic) {
     const r = notConfiguredResponse();

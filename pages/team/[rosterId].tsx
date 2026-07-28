@@ -7,6 +7,7 @@ import { Avatar } from "../../components/ui/Avatar";
 import { Card, CardBody, CardHeader, CardTitle } from "../../components/ui/Card";
 import { Table, TBody, TD, TH, THead, TR } from "../../components/ui/Table";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { KeeperGradeBadge } from "../../components/KeeperGradeBadge";
 import { cn } from "../../lib/cn";
 
 export default function TeamDetailPage() {
@@ -168,7 +169,7 @@ export default function TeamDetailPage() {
                         <TH className="w-20">NFL Team</TH>
                         <TH className="w-24">Rank</TH>
                         <TH className="w-24">Keeper</TH>
-                        <TH className="w-24">Value</TH>
+                        <TH className="w-28">Value</TH>
                       </TR>
                     </THead>
                     <TBody>
@@ -182,7 +183,12 @@ export default function TeamDetailPage() {
                           <TD>
                             {p.keeperRound != null ? `R${p.keeperRound}` : "—"}
                           </TD>
-                          <TD>{p.valueScore?.toFixed(1) ?? "—"}</TD>
+                          <TD>
+                            <KeeperGradeBadge
+                              grade={p.keeperGrade}
+                              hint={p.keeperValueHint}
+                            />
+                          </TD>
                         </TR>
                       ))}
                     </TBody>

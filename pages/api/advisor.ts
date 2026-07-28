@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { anthropic, MODELS, notConfiguredResponse, unwrapToolInput } from "../../lib/anthropic";
+import { FEATURES, featureDisabledResponse } from "../../lib/featureFlags";
 import { systemBlocks } from "../../lib/aiPrompts";
 
 interface RosterPlayer {
@@ -10,7 +11,12 @@ interface RosterPlayer {
   pprRank: number | null;
   keeperRound: number | null;
   prevKeeper?: boolean;
-  valueScore?: number | null;
+  /** Draft-capital surplus in FantasyCalc points. See lib/keeperValue.ts. */
+  keeperSurplus?: number | null;
+  /** Human bucket for the surplus, e.g. "Elite steal". */
+  keeperGrade?: string | null;
+  /** Overall pick number the keeper cost consumes. */
+  keeperPickSlot?: number | null;
 }
 
 interface AdvisorRequest {
@@ -223,22 +229,28 @@ function formatRoster(
   roster: RosterPlayer[],
   posRanks: Map<string, number>,
 ): string {
-  // Sort by precomputed value score (descending) so the top candidates appear
-  // first. Players without a score fall to the bottom.
+  // Sort by precomputed surplus (descending) so the top candidates appear
+  // first. Players without a surplus fall to the bottom.
   const sorted = [...roster].sort((a, b) => {
-    const av = a.valueScore ?? -Infinity;
-    const bv = b.valueScore ?? -Infinity;
+    const av = a.keeperSurplus ?? -Infinity;
+    const bv = b.keeperSurplus ?? -Infinity;
     return bv - av;
   });
   return sorted
     .map((p) => {
       const posRank = posRanks.get(p.playerId);
       const posLabel = posRank ? `${p.position}${posRank}` : p.position;
-      const score =
-        p.valueScore != null ? `value ${p.valueScore.toFixed(2)}` : "value —";
+      const surplus =
+        p.keeperSurplus != null
+          ? `surplus ${Math.round(p.keeperSurplus)}${
+              p.keeperGrade ? ` (${p.keeperGrade})` : ""
+            }`
+          : "surplus —";
+      const costsPick =
+        p.keeperPickSlot != null ? ` | costs pick ${p.keeperPickSlot}` : "";
       return `- ${p.name} (${posLabel}, ${p.teamAbbr}) | overall PPR ${
         p.pprRank ?? "—"
-      } | keeper R${p.keeperRound ?? "—"} | ${score}${
+      } | keeper R${p.keeperRound ?? "—"}${costsPick} | ${surplus}${
         p.prevKeeper ? " [escalated by consecutive keeps]" : ""
       } | id: ${p.playerId}`;
     })
@@ -252,6 +264,11 @@ export default async function handler(
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).end();
+  }
+  // Flag check comes before anything that could reach the paid API.
+  if (!FEATURES.advisor) {
+    const r = featureDisabledResponse();
+    return res.status(r.status).json(r.body);
   }
   if (!anthropic) {
     const r = notConfiguredResponse();
@@ -298,12 +315,23 @@ Team: ${body.teamName}${
     body.managerName ? ` (manager: ${body.managerName})` : ""
   }
 
-Current roster, sorted by precomputed value score (DESCENDING). Annotation key:
+Current roster, sorted by precomputed keeper surplus (DESCENDING). Annotation key:
   - "QB12" / "RB5" / "TE7" — POSITIONAL rank in this league pool (NOT overall PPR rank).
-  - "value X.XX" — server-computed value score = (equity + scarcity_bonus) * tier_weight.
-    Strongly positive (≥ +1.5) = likely keep. Near zero = borderline.
-    Strongly negative (≤ -0.5) = likely drop (overpaying for the keeper slot).
-  - Use this score as a strong PRIOR, not the final answer — your own
+  - "costs pick N" — the OVERALL pick number this keeper consumes, given the
+    team's slot in the snake. R1 for the team at slot 1 is pick 1; for the team
+    at slot 12 it is pick 12. Very different prices for the same round.
+  - "surplus X (Label)" — draft-capital surplus in FantasyCalc trade-value
+    points: value(player) − value(best player expected on the board at that
+    pick). Positive means keeping beats simply drafting at that slot. The
+    points scale is non-linear and matches the real draft, so a surplus of
+    +2500 in round 1 and +2500 in round 10 are equally valuable.
+    Roughly: ≥ +3500 elite, +1500..3500 strong, +500..1500 solid,
+    −200..+500 about fair, below −200 an overpay.
+  - Note a top-ranked player can show only a SMALL surplus when his team picks
+    early in round 1 — at 1.01 you could simply draft him, so keeping him saves
+    almost nothing. That is correct, not a data error. Do not "fix" it by
+    recommending him purely on talent; argue from surplus and roster context.
+  - Use the surplus as a strong PRIOR, not the final answer — your own
     framework analysis can override it (e.g. for trajectory/injury reasons),
     but you must JUSTIFY any deviation explicitly.
 
@@ -462,9 +490,9 @@ CRITICAL OUTPUT RULES:
     appears in both arrays).
   - Be willing to recommend 2 or 3 keepers if the 4th-best option is
     genuinely negative equity. Don't fill 4 slots out of completeness.
-  - Use the precomputed value scores as a prior. If you deviate from the
-    value-score ranking, explicitly justify why in the player's rationale
-    (e.g. "value score higher but he's 32 and on a new team — discounted").
+  - Use the precomputed keeper surplus as a prior. If you deviate from the
+    surplus ranking, explicitly justify why in the player's rationale
+    (e.g. "higher surplus but he's 32 and on a new team — discounted").
   - Consider the WHOLE roster, not just the famous names. The 4th-best
     keeper is often someone whose name you don't recognize.`;
 

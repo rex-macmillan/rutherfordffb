@@ -129,20 +129,41 @@ export const getMatchups = (leagueId: string, week: number) =>
 export interface FCPlayerResp {
   player: { sleeperId: string };
   overallRank: number;
+  /** Trade value in FantasyCalc points. Redraft, since isDynasty=false. */
+  value: number;
+}
+
+/**
+ * Ranks are ordinal; `values` carry the non-linear shape of the draft (the gap
+ * between picks 1 and 13 is ~8x the gap between picks 97 and 109). The keeper
+ * value model in lib/keeperValue.ts needs the values, not the ranks.
+ */
+export interface FCData {
+  /** sleeperId → overall rank, 1 = best. */
+  ranks: Map<string, number>;
+  /** sleeperId → trade value in FantasyCalc points. */
+  values: Map<string, number>;
+  /** Every ranked player's value, descending. Index i = the (i+1)-th best. */
+  valueCurve: number[];
 }
 
 const FC_URL =
   "https://api.fantasycalc.com/values/current?isDynasty=false&numQbs=1&numTeams=12&ppr=1";
 
-export async function getFCRanks(): Promise<Map<string, number>> {
+export async function getFCData(): Promise<FCData> {
   const res = await fetch(FC_URL);
   if (!res.ok) throw new Error(`FantasyCalc ranks ${res.status}`);
   const data: FCPlayerResp[] = await res.json();
-  const map = new Map<string, number>();
+  const ranks = new Map<string, number>();
+  const values = new Map<string, number>();
   data.forEach((p) => {
-    if (p.player?.sleeperId) map.set(p.player.sleeperId, p.overallRank);
+    const id = p.player?.sleeperId;
+    if (!id) return;
+    ranks.set(id, p.overallRank);
+    if (typeof p.value === "number") values.set(id, p.value);
   });
-  return map;
+  const valueCurve = Array.from(values.values()).sort((a, b) => b - a);
+  return { ranks, values, valueCurve };
 }
 
 // ---------- Avatars ----------

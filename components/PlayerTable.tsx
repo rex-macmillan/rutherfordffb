@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { assignKeeperSlots } from "../lib/keepers";
+import type { KeeperGrade } from "../lib/keeperValue";
+import { KeeperGradeBadge } from "./KeeperGradeBadge";
 import { cn } from "../lib/cn";
 
 interface PlayerRowData {
@@ -19,12 +21,14 @@ interface PlayerRowData {
   starReason?: string;
   rosterId: number;
   teamAbbr: string;
-  valueScore?: number | null;
+  keeperSurplus?: number | null;
+  keeperGrade?: KeeperGrade | null;
+  keeperValueHint?: string;
 }
 
 type SortKey = keyof Pick<
   PlayerRowData,
-  | "valueScore"
+  | "keeperSurplus"
   | "draftRank"
   | "pprRank"
   | "name"
@@ -60,11 +64,11 @@ const SortIcon = ({ active, asc }: { active: boolean; asc: boolean }) => (
 /**
  * Sort presets for the mobile card list — each maps to the same sortKey the
  * desktop column headers use, with a sensible fixed direction for thumbs.
- * (valueScore sorting is internally inverted, so asc:true = best value first.)
+ * (keeperSurplus sorting is internally inverted, so asc:true = best value first.)
  */
 const MOBILE_SORTS: { key: SortKey; label: string; asc: boolean }[] = [
   { key: "pprRank", label: "Overall rank", asc: true },
-  { key: "valueScore", label: "Keeper value", asc: true },
+  { key: "keeperSurplus", label: "Keeper value", asc: true },
   { key: "keeperRound", label: "Keeper round", asc: true },
   { key: "name", label: "Name A–Z", asc: true },
   { key: "position", label: "Position", asc: true },
@@ -114,7 +118,7 @@ const PlayerTable: React.FC<Props> = ({
       if (av == null) return asc ? 1 : -1;
       if (bv == null) return asc ? -1 : 1;
       if (typeof av === "number" && typeof bv === "number") {
-        if (sortKey === "valueScore") return (bv - av) * dir;
+        if (sortKey === "keeperSurplus") return (bv - av) * dir;
         return (av - bv) * dir;
       }
       return String(av).localeCompare(String(bv)) * dir;
@@ -275,9 +279,12 @@ const PlayerTable: React.FC<Props> = ({
                         → slot R{slot}
                       </span>
                     )}
-                    {p.valueScore != null && (
-                      <span className="block text-xs tabular-nums text-ink-400">
-                        val {p.valueScore.toFixed(1)}
+                    {p.keeperGrade && (
+                      <span className="mt-0.5 block">
+                        <KeeperGradeBadge
+                          grade={p.keeperGrade}
+                          hint={p.keeperValueHint}
+                        />
                       </span>
                     )}
                   </span>
@@ -305,7 +312,7 @@ const PlayerTable: React.FC<Props> = ({
               {showDraftDetails && <SortableHeader keyName="draftRank">Drafted</SortableHeader>}
               <SortableHeader keyName="currentTeam">Current Roster</SortableHeader>
               <SortableHeader keyName="keeperRound" className="w-20">Keeper</SortableHeader>
-              <SortableHeader keyName="valueScore" className="w-20">Value</SortableHeader>
+              <SortableHeader keyName="keeperSurplus" className="w-28">Value</SortableHeader>
               <th className="w-20 px-3 py-2 text-left text-xs font-semibold uppercase text-ink-700">
                 Used Slot
               </th>
@@ -369,8 +376,11 @@ const PlayerTable: React.FC<Props> = ({
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 tabular-nums text-ink-700">
-                    {p.valueScore != null ? p.valueScore.toFixed(1) : "-"}
+                  <td className="px-3 py-2">
+                    <KeeperGradeBadge
+                      grade={p.keeperGrade}
+                      hint={p.keeperValueHint}
+                    />
                   </td>
                   <td className="px-3 py-2 font-semibold text-emerald-700">
                     {adjustedMap.get(p.playerId) ?? ""}
