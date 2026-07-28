@@ -22,7 +22,8 @@ import {
 } from "../lib/keepers";
 import { cn } from "../lib/cn";
 
-type Scope = "mine" | "all";
+/** "all" = every rostered player + ranked free agents; a number = one roster. */
+type TeamFilter = "all" | number;
 
 export default function KeepersPage() {
   const { username } = useIdentity();
@@ -52,7 +53,7 @@ export default function KeepersPage() {
     return findMyRosterId(data.currentUsers, data.currentRosters, username);
   }, [data, username]);
 
-  const [scope, setScope] = useState<Scope>("mine");
+  const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [selectedPos, setSelectedPos] = useState<string | "all">("all");
   const [showDraftDetails, setShowDraftDetails] = useState(false);
   const [selectedKeepers, setSelectedKeepers] = useState<Set<string>>(new Set());
@@ -78,16 +79,24 @@ export default function KeepersPage() {
     [data?.rows],
   );
 
-  // "My team" only means something once the username matches a roster; fall
-  // back to the full pool otherwise.
-  const effectiveScope: Scope = myRosterId == null ? "all" : scope;
+  // Your own roster sorts to the top of the filter; the rest go alphabetically.
+  const teamOptions = useMemo(() => {
+    if (!data) return [];
+    const sorted = [...data.teams].sort((a, b) =>
+      a.teamName.localeCompare(b.teamName),
+    );
+    return [
+      ...sorted.filter((t) => t.rosterId === myRosterId),
+      ...sorted.filter((t) => t.rosterId !== myRosterId),
+    ];
+  }, [data, myRosterId]);
 
   const filteredByTeam = useMemo(() => {
     if (!data) return [];
-    return effectiveScope === "mine"
-      ? data.rows.filter((p) => p.rosterId === myRosterId)
-      : data.rows;
-  }, [data, effectiveScope, myRosterId]);
+    return teamFilter === "all"
+      ? data.rows
+      : data.rows.filter((p) => p.rosterId === teamFilter);
+  }, [data, teamFilter]);
 
   const filteredPlayers = useMemo(
     () =>
@@ -220,34 +229,42 @@ export default function KeepersPage() {
         </p>
       </div>
 
-      {/* Scope + position filters */}
+      {/* Team + position filters */}
       {data && (
         <div className="space-y-2.5">
-          {myRosterId != null && (
-            <div className="inline-flex rounded-xl border border-ink-200 bg-white p-1 shadow-sm">
-              {(
-                [
-                  { key: "mine", label: "My team" },
-                  { key: "all", label: "All players" },
-                ] as { key: Scope; label: string }[]
-              ).map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => setScope(s.key)}
-                  aria-pressed={effectiveScope === s.key}
-                  className={cn(
-                    "min-h-10 rounded-lg px-4 text-sm font-medium transition-colors",
-                    effectiveScope === s.key
-                      ? "bg-brand-600 text-white shadow-sm"
-                      : "text-ink-600 hover:text-ink-900",
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-ink-600">
+              Team
+              {/* text-base keeps iOS from zooming the viewport on focus. */}
+              <select
+                value={String(teamFilter)}
+                onChange={(e) =>
+                  setTeamFilter(
+                    e.target.value === "all" ? "all" : Number(e.target.value),
+                  )
+                }
+                className="min-h-10 rounded-md border border-ink-300 bg-white px-2 py-1.5 text-base text-ink-900 shadow-sm"
+              >
+                <option value="all">All players</option>
+                {teamOptions.map((t) => (
+                  <option key={t.rosterId} value={t.rosterId}>
+                    {t.teamName}
+                    {t.rosterId === myRosterId ? " (my team)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {myRosterId != null && teamFilter !== myRosterId && (
+              <button
+                type="button"
+                onClick={() => setTeamFilter(myRosterId)}
+                className="min-h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm font-medium text-ink-700 shadow-sm hover:bg-ink-50"
+              >
+                My team
+              </button>
+            )}
+          </div>
 
           <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 no-scrollbar sm:mx-0 sm:flex-wrap sm:px-0">
             {["all", ...positions].map((pos) => {
@@ -292,6 +309,24 @@ export default function KeepersPage() {
         <Card>
           <CardBody>
             <div className="text-sm text-red-700">{error.message}</div>
+          </CardBody>
+        </Card>
+      )}
+
+      {data && filteredPlayers.length === 0 && (
+        <Card>
+          <CardBody className="text-sm text-ink-600">
+            No players match this filter.{" "}
+            <button
+              type="button"
+              className="underline"
+              onClick={() => {
+                setTeamFilter("all");
+                setSelectedPos("all");
+              }}
+            >
+              Reset filters
+            </button>
           </CardBody>
         </Card>
       )}
