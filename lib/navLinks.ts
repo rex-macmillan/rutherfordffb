@@ -1,8 +1,7 @@
 /**
  * Single source of truth for app navigation. Consumed by the desktop top nav
- * (Layout), the mobile bottom tab bar (MobileTabBar), the full-menu sheet
- * (AppMenu in Layout), and the Home quick-link grid. `core` links show in
- * the bottom bar; the rest live behind the "More" sheet.
+ * (Layout), the mobile bottom tab bar (MobileTabBar), and the Home quick-link
+ * grid. `core` links show in the bottom bar; the rest live behind the "More" sheet.
  */
 import { FEATURES } from "./featureFlags";
 

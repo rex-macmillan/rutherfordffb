@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
+import { useHeaderBack } from "../../components/HeaderNav";
 import { useCurrentLeague, useKeeperHelperData } from "../../lib/leagueHooks";
 import { useKeeperScenarios } from "../../lib/leagueState";
 import {
@@ -20,6 +20,8 @@ export default function TeamDetailPage() {
     typeof router.query.rosterId === "string"
       ? parseInt(router.query.rosterId)
       : NaN;
+
+  useHeaderBack({ href: "/teams", label: "Teams" });
 
   const { league, season, isLoading: leagueLoading } = useCurrentLeague();
   const { data, isLoading } = useKeeperHelperData(league, season);
@@ -68,10 +70,7 @@ export default function TeamDetailPage() {
   if (!team) {
     return (
       <div>
-        <p className="mb-3 text-ink-600">Roster not found.</p>
-        <Link href="/teams" className="text-brand-700 underline">
-          ← Back to Teams
-        </Link>
+        <p className="text-ink-600">Roster not found.</p>
       </div>
     );
   }
@@ -106,7 +105,7 @@ export default function TeamDetailPage() {
           alt={team.teamName}
           size={48}
         />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold sm:text-2xl">
             {team.teamName}
           </h1>
@@ -116,12 +115,6 @@ export default function TeamDetailPage() {
             </p>
           )}
         </div>
-        <Link
-          href="/teams"
-          className="ml-auto flex min-h-11 shrink-0 items-center text-sm text-brand-700 underline"
-        >
-          ← All teams
-        </Link>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

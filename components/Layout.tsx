@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import { useRouter } from "next/router";
 import { LeaguePanelProvider, LeaguePanelTrigger } from "./LeaguePanel";
 import MobileTabBar from "./MobileTabBar";
-import { AppMenu } from "./AppMenu";
-import { NavIcon } from "./NavIcon";
+import { HeaderNavProvider, useHeaderNav } from "./HeaderNav";
 import { Avatar } from "./ui/Avatar";
 import { useIdentity } from "../lib/identity";
 import { useCurrentLeague } from "../lib/leagueHooks";
@@ -15,31 +14,99 @@ interface Props {
   children: ReactNode;
 }
 
-const Layout: React.FC<Props> = ({ children }) => {
+function HeaderBackButton({
+  href,
+  label,
+  className,
+}: {
+  href: string;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex min-h-10 min-w-10 items-center gap-0.5 rounded-lg text-ink-200 hover:bg-ink-800 hover:text-white",
+        className,
+      )}
+      aria-label={`Back to ${label}`}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-6 w-6 shrink-0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+      <span className="hidden max-w-[5rem] truncate text-sm font-medium sm:inline">
+        {label}
+      </span>
+    </Link>
+  );
+}
+
+function LeagueTitle({ leagueName, leagueAvatar }: { leagueName: string; leagueAvatar?: string | null }) {
+  return (
+    <Link
+      href="/"
+      className="flex min-w-0 max-w-full items-center justify-center gap-2 text-sm font-semibold text-white"
+    >
+      {leagueAvatar ? (
+        <Avatar avatarId={leagueAvatar} alt={leagueName} size={24} />
+      ) : (
+        <span aria-hidden>🏈</span>
+      )}
+      <span className="truncate">{leagueName}</span>
+    </Link>
+  );
+}
+
+function LayoutShell({ children }: Props) {
   const router = useRouter();
   const { username, signOut } = useIdentity();
   const { league } = useCurrentLeague();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { back } = useHeaderNav();
+
+  const leagueName = league?.name ?? "Rutherford FFB";
 
   return (
-    <LeaguePanelProvider>
-      <div className="min-h-screen bg-ink-50">
-        <nav className="sticky top-0 z-40 flex items-center gap-2 bg-ink-900 px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-ink-100 shadow-sm">
-          {/* League identity — tap goes home. */}
-          <Link
-            href="/"
-            className="flex min-w-0 items-center gap-2 text-sm font-semibold text-white"
-          >
-            {league?.avatar ? (
-              <Avatar avatarId={league.avatar} alt={league.name} size={24} />
+    <div className="min-h-screen bg-ink-50">
+      <nav className="sticky top-0 z-40 bg-ink-900 px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-ink-100 shadow-sm">
+        {/* Mobile: back · centered league · panel */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 md:hidden">
+          <div className="justify-self-start">
+            {back ? (
+              <HeaderBackButton href={back.href} label={back.label} />
             ) : (
-              <span aria-hidden>🏈</span>
+              <span className="block min-w-10" aria-hidden />
             )}
-            <span className="truncate">{league?.name ?? "Rutherford FFB"}</span>
-          </Link>
+          </div>
+          <div className="min-w-0 justify-self-center px-1">
+            <LeagueTitle leagueName={leagueName} leagueAvatar={league?.avatar} />
+          </div>
+          <div className="flex justify-self-end">
+            <LeaguePanelTrigger />
+          </div>
+        </div>
 
-          {/* Desktop inline nav. */}
-          <div className="ml-4 hidden items-center gap-0.5 md:flex">
+        {/* Desktop: back + league · inline nav · panel + user */}
+        <div className="hidden items-center gap-2 md:flex">
+          {back && (
+            <HeaderBackButton
+              href={back.href}
+              label={back.label}
+              className="-ml-1 shrink-0"
+            />
+          )}
+          <LeagueTitle leagueName={leagueName} leagueAvatar={league?.avatar} />
+
+          <div className="ml-4 flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto no-scrollbar">
             {NAV_LINKS.map((l) => {
               const active = l.match(router.pathname);
               return (
@@ -47,7 +114,7 @@ const Layout: React.FC<Props> = ({ children }) => {
                   key={l.href}
                   href={l.href}
                   className={cn(
-                    "rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+                    "shrink-0 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
                     active
                       ? "bg-brand-700 text-white"
                       : "text-ink-200 hover:bg-ink-800 hover:text-white",
@@ -62,7 +129,7 @@ const Layout: React.FC<Props> = ({ children }) => {
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <LeaguePanelTrigger />
             {username && (
-              <div className="hidden items-center gap-2 text-sm md:flex">
+              <div className="flex items-center gap-2 text-sm">
                 <span className="hidden text-ink-300 lg:inline">{username}</span>
                 <button
                   onClick={signOut}
@@ -73,26 +140,25 @@ const Layout: React.FC<Props> = ({ children }) => {
                 </button>
               </div>
             )}
-            {/* Full-menu button — the mobile "hamburger". */}
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open menu"
-              aria-haspopup="dialog"
-              className="grid h-10 w-10 place-items-center rounded-lg text-ink-200 hover:bg-ink-800 hover:text-white md:hidden"
-            >
-              <NavIcon name="menu" className="h-6 w-6" />
-            </button>
           </div>
-        </nav>
+        </div>
+      </nav>
 
-        <main className="px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:py-6 md:pb-6">
-          {children}
-        </main>
+      <main className="px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-6 md:py-6 md:pb-6">
+        {children}
+      </main>
 
-        <MobileTabBar />
-        <AppMenu open={menuOpen} onOpenChange={setMenuOpen} />
-      </div>
+      <MobileTabBar />
+    </div>
+  );
+}
+
+const Layout: React.FC<Props> = ({ children }) => {
+  return (
+    <LeaguePanelProvider>
+      <HeaderNavProvider>
+        <LayoutShell>{children}</LayoutShell>
+      </HeaderNavProvider>
     </LeaguePanelProvider>
   );
 };
