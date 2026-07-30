@@ -100,6 +100,13 @@ export function NavIcon({
           <path d="M18 4H6v6a6 6 0 0 0 12 0z" />
         </g>
       )}
+      {name === "poll" && (
+        <g {...stroke}>
+          <rect x="3" y="4" width="18" height="18" rx="2.5" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+          <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h8" />
+        </g>
+      )}
       {name === "more" && (
         <g fill="currentColor">
           <circle cx="5" cy="12" r="1.6" />

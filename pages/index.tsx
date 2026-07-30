@@ -12,6 +12,7 @@ import {
 } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
 import { useLeagueKeepers } from "../lib/leagueState";
+import { useDraftPoll } from "../lib/pollState";
 import { MAX_KEEPERS_PER_TEAM } from "../lib/keepers";
 import { NAV_LINKS } from "../lib/navLinks";
 import { cn } from "../lib/cn";
@@ -25,6 +26,7 @@ const LINK_BLURBS: Record<string, string> = {
   "/advisor": "AI keeper recommendations",
   "/trade-evaluator": "AI trade analysis",
   "/playoffs": "Last season's brackets",
+  "/draft-poll": "When can you draft at night?",
 };
 
 export default function HomePage() {
@@ -38,6 +40,7 @@ export default function HomePage() {
   } = useCurrentLeague();
   const { data, isLoading: dataLoading } = useKeeperHelperData(league, season);
   const { data: allLeagueKeepers, isShared } = useLeagueKeepers(league?.league_id);
+  const { data: pollResponses, isShared: pollShared } = useDraftPoll(league?.league_id);
 
   const myRosterId = useMemo(
     () =>
@@ -66,6 +69,16 @@ export default function HomePage() {
     const count = allLeagueKeepers.filter((k) => k.playerIds.length > 0).length;
     return { count, total: data.teams.length };
   }, [data, allLeagueKeepers, isShared]);
+
+  const pollPending = useMemo(() => {
+    if (!pollShared || !data || myRosterId == null) return false;
+    return !pollResponses.some((r) => r.rosterId === myRosterId);
+  }, [pollShared, data, myRosterId, pollResponses]);
+
+  const pollProgress = useMemo(() => {
+    if (!pollShared || !data) return null;
+    return { count: pollResponses.length, total: data.teams.length };
+  }, [pollShared, data, pollResponses]);
 
   const loading = leagueLoading || dataLoading;
 
@@ -98,6 +111,32 @@ export default function HomePage() {
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-40 w-full" />
         </div>
+      )}
+
+      {/* Draft date poll — nudge managers who haven't responded yet. */}
+      {pollPending && (
+        <Card>
+          <CardBody className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="font-medium text-ink-900">Draft date poll is open</div>
+              <div className="text-sm text-ink-600">
+                Tell us which draft nights work (Aug 30 – Sep 7).
+                {pollProgress && pollProgress.count > 0 && (
+                  <>
+                    {" "}
+                    {pollProgress.count} of {pollProgress.total} teams have responded.
+                  </>
+                )}
+              </div>
+            </div>
+            <Link
+              href="/draft-poll"
+              className="flex min-h-11 shrink-0 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              Take the poll
+            </Link>
+          </CardBody>
+        </Card>
       )}
 
       {/* Your team, front and center. */}

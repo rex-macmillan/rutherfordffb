@@ -17,6 +17,7 @@ export type NavIconName =
   | "advisor"
   | "trade"
   | "playoffs"
+  | "poll"
   | "menu"
   | "panels"
   | "more";
@@ -44,6 +45,7 @@ const ALL_NAV_LINKS: NavLink[] = [
   { href: "/rules", label: "Rules", full: "Rules", icon: "rules", core: false, match: (p) => p.startsWith("/rules") },
   { href: "/advisor", label: "Advisor", full: "Keeper Advisor", icon: "advisor", core: false, enabled: FEATURES.advisor, match: (p) => p.startsWith("/advisor") },
   { href: "/trade-evaluator", label: "Trade", full: "Trade Evaluator", icon: "trade", core: false, enabled: FEATURES.tradeEvaluator, match: (p) => p.startsWith("/trade-evaluator") },
+  { href: "/draft-poll", label: "Poll", full: "Draft date poll", icon: "poll", core: false, match: (p) => p.startsWith("/draft-poll") },
   { href: "/playoffs", label: "Playoffs", full: "Playoffs", icon: "playoffs", core: false, match: (p) => p.startsWith("/playoffs") },
 ];
 

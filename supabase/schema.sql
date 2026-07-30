@@ -39,3 +39,43 @@ create policy "league members update keeper_selections"
 drop policy if exists "league members delete keeper_selections" on keeper_selections;
 create policy "league members delete keeper_selections"
   on keeper_selections for delete using (true);
+
+-- ---------- Draft date poll ----------
+
+create table if not exists draft_poll_responses (
+  league_id          text not null,
+  poll_id            text not null default '2026-draft',
+  roster_id          integer not null,
+  username           text,
+  available_dates    text[] not null default '{}',
+  unavailable_dates  text[] not null default '{}',
+  slot_ids           text[] not null default '{}',  -- legacy broad buckets; unused
+  notes              text,
+  updated_at         timestamptz not null default now(),
+  primary key (league_id, poll_id, roster_id)
+);
+
+-- If you created draft_poll_responses before per-date columns existed, run:
+-- alter table draft_poll_responses add column if not exists available_dates text[] not null default '{}';
+-- alter table draft_poll_responses add column if not exists unavailable_dates text[] not null default '{}';
+
+create index if not exists draft_poll_responses_league_poll_idx
+  on draft_poll_responses (league_id, poll_id);
+
+alter table draft_poll_responses enable row level security;
+
+drop policy if exists "league members read draft_poll_responses" on draft_poll_responses;
+create policy "league members read draft_poll_responses"
+  on draft_poll_responses for select using (true);
+
+drop policy if exists "league members write draft_poll_responses" on draft_poll_responses;
+create policy "league members write draft_poll_responses"
+  on draft_poll_responses for insert with check (true);
+
+drop policy if exists "league members update draft_poll_responses" on draft_poll_responses;
+create policy "league members update draft_poll_responses"
+  on draft_poll_responses for update using (true) with check (true);
+
+drop policy if exists "league members delete draft_poll_responses" on draft_poll_responses;
+create policy "league members delete draft_poll_responses"
+  on draft_poll_responses for delete using (true);
