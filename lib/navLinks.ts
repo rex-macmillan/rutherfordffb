@@ -40,7 +40,7 @@ export interface NavLink {
 const ALL_NAV_LINKS: NavLink[] = [
   { href: "/", label: "Home", full: "Home", icon: "home", core: true, match: (p) => p === "/" },
   { href: "/keepers", label: "Keepers", full: "Keepers", icon: "keepers", core: true, match: (p) => p.startsWith("/keepers") },
-  { href: "/draft", label: "Draft", full: "Draft", icon: "board", core: true, match: (p) => p.startsWith("/draft") },
+  { href: "/draft", label: "Draft", full: "Draft", icon: "board", core: true, match: (p) => p === "/draft" },
   { href: "/teams", label: "Teams", full: "Teams", icon: "teams", core: false, match: (p) => p.startsWith("/teams") || p.startsWith("/team/") },
   { href: "/rules", label: "Rules", full: "Rules", icon: "rules", core: false, match: (p) => p.startsWith("/rules") },
   { href: "/advisor", label: "Advisor", full: "Keeper Advisor", icon: "advisor", core: false, enabled: FEATURES.advisor, match: (p) => p.startsWith("/advisor") },
