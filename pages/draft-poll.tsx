@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
 import { Skeleton } from "../components/ui/Skeleton";
-import { draftPollDates } from "../lib/draftPollConfig";
+import { draftPollDates, type DraftPollDate } from "../lib/draftPollConfig";
 import { findMyRosterId, useCurrentLeague } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
 import { useDraftPoll } from "../lib/pollState";
@@ -37,6 +37,54 @@ function splitChoices(choices: Record<string, DateChoice>) {
     if (choice === "no") unavailable.push(date);
   });
   return { available, unavailable };
+}
+
+function PollChoiceMark({ choice }: { choice: DateChoice | null }) {
+  if (choice === "works") {
+    return (
+      <span className="font-semibold text-emerald-600" aria-label="Works">
+        ✓
+      </span>
+    );
+  }
+  if (choice === "no") {
+    return (
+      <span className="font-semibold text-red-500" aria-label="Doesn't work">
+        ✗
+      </span>
+    );
+  }
+  return (
+    <span className="text-ink-300" aria-label="Flexible">
+      —
+    </span>
+  );
+}
+
+function PollDatePill({
+  date,
+  choice,
+}: {
+  date: DraftPollDate;
+  choice: DateChoice | null;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center",
+        choice === "works" && "border-emerald-200 bg-emerald-50",
+        choice === "no" && "border-red-200 bg-red-50",
+        choice == null && "border-ink-100 bg-white",
+      )}
+    >
+      <span className="w-full truncate text-[10px] font-medium leading-tight text-ink-500">
+        {date.shortLabel}
+      </span>
+      <span className="text-sm leading-none">
+        <PollChoiceMark choice={choice} />
+      </span>
+    </div>
+  );
 }
 
 export default function DraftPollPage() {
@@ -144,9 +192,6 @@ export default function DraftPollPage() {
       });
       const flexible = responses.length - works - blocked;
       return { date, works, blocked, flexible };
-    }).sort((a, b) => {
-      if (b.works !== a.works) return b.works - a.works;
-      return a.blocked - b.blocked;
     });
   }, [responses]);
 
@@ -356,22 +401,27 @@ export default function DraftPollPage() {
             <div className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Best dates (most &quot;works&quot; votes)</CardTitle>
+                  <CardTitle>Availability by date</CardTitle>
                 </CardHeader>
-                <CardBody className="space-y-3">
+                <CardBody className="space-y-2 md:space-y-3">
                   {dateStats.map(({ date, works, blocked, flexible }) => {
                     const total = teams.length;
                     const pct = total ? (works / total) * 100 : 0;
                     return (
-                      <div key={date.id} className="space-y-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                          <span className="font-medium text-ink-800">{date.label}</span>
-                          <span className="tabular-nums text-ink-500">
+                      <div
+                        key={date.id}
+                        className="space-y-1.5 rounded-lg border border-ink-100 bg-ink-50/40 p-3 md:border-0 md:bg-transparent md:p-0"
+                      >
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-2">
+                          <span className="text-sm font-medium text-ink-800">
+                            {date.label}
+                          </span>
+                          <span className="text-xs tabular-nums text-ink-500 sm:text-sm">
                             {works} works · {blocked} blocked
                             {flexible > 0 && ` · ${flexible} flexible`}
                           </span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-ink-100">
+                        <div className="h-2.5 overflow-hidden rounded-full bg-ink-100 md:h-2">
                           <div
                             className="h-full rounded-full bg-emerald-500 transition-[width]"
                             style={{ width: `${pct}%` }}
@@ -393,11 +443,53 @@ export default function DraftPollPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardBody className="p-0">
-                  <div className="overflow-x-auto">
+                  {/* Mobile: one card per team — avoids cramped horizontal scroll */}
+                  <ul className="divide-y divide-ink-100 md:hidden">
+                    {teams.map((t) => {
+                      const resp = responses.find((r) => r.rosterId === t.rosterId);
+                      const pending = !respondedIds.has(t.rosterId);
+                      return (
+                        <li
+                          key={t.rosterId}
+                          className={cn(
+                            "space-y-2 px-3 py-3",
+                            pending && "bg-amber-50/40",
+                            t.rosterId === myRosterId && "bg-brand-50/30",
+                          )}
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-ink-900">
+                              {t.teamName}
+                            </div>
+                            {pending && (
+                              <div className="text-xs text-amber-700">Pending</div>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {POLL_DATES.map((d) => (
+                              <PollDatePill
+                                key={d.id}
+                                date={d}
+                                choice={responseChoice(resp, d.id)}
+                              />
+                            ))}
+                          </div>
+                          {resp?.notes && (
+                            <p className="text-xs leading-snug text-ink-600">
+                              {resp.notes}
+                            </p>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {/* Desktop: full matrix */}
+                  <div className="hidden overflow-x-auto md:block">
                     <table className="w-full min-w-[640px] text-sm">
                       <thead className="bg-ink-50 text-xs uppercase text-ink-500">
                         <tr>
-                          <th className="sticky left-0 z-10 bg-ink-50 px-3 py-2 text-left">
+                          <th className="sticky left-0 z-10 min-w-[9rem] bg-ink-50 px-3 py-2 text-left shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                             Team
                           </th>
                           {POLL_DATES.map((d) => (
@@ -421,7 +513,7 @@ export default function DraftPollPage() {
                                 t.rosterId === myRosterId && "bg-brand-50/30",
                               )}
                             >
-                              <td className="sticky left-0 z-10 bg-inherit px-3 py-2 font-medium">
+                              <td className="sticky left-0 z-10 min-w-[9rem] bg-inherit px-3 py-2 font-medium shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                                 {t.teamName}
                                 {pending && (
                                   <span className="ml-1 text-xs font-normal text-amber-700">
@@ -433,19 +525,7 @@ export default function DraftPollPage() {
                                 const c = responseChoice(resp, d.id);
                                 return (
                                   <td key={d.id} className="px-1.5 py-2 text-center">
-                                    {c === "works" ? (
-                                      <span className="text-emerald-600" title="Works">
-                                        ✓
-                                      </span>
-                                    ) : c === "no" ? (
-                                      <span className="text-red-500" title="Doesn't work">
-                                        ✗
-                                      </span>
-                                    ) : (
-                                      <span className="text-ink-300" title="Flexible">
-                                        —
-                                      </span>
-                                    )}
+                                    <PollChoiceMark choice={c} />
                                   </td>
                                 );
                               })}
