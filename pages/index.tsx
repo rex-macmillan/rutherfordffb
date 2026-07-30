@@ -11,7 +11,7 @@ import {
   useKeeperHelperData,
 } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
-import { useLeagueKeepers } from "../lib/leagueState";
+import { useKeeperScenarios } from "../lib/leagueState";
 import { useDraftPoll } from "../lib/pollState";
 import { MAX_KEEPERS_PER_TEAM } from "../lib/keepers";
 import { NAV_LINKS } from "../lib/navLinks";
@@ -19,7 +19,7 @@ import { cn } from "../lib/cn";
 
 /** One-line blurbs for the Home quick-link grid, keyed by route. */
 const LINK_BLURBS: Record<string, string> = {
-  "/keepers": "Pick and save your keepers",
+  "/keepers": "Model draft scenarios (private)",
   "/draft": "Board, order & recap",
   "/teams": "Every roster in the league",
   "/rules": "Rulebook, chat & demo",
@@ -39,7 +39,7 @@ export default function HomePage() {
     isLoading: leagueLoading,
   } = useCurrentLeague();
   const { data, isLoading: dataLoading } = useKeeperHelperData(league, season);
-  const { data: allLeagueKeepers, isShared } = useLeagueKeepers(league?.league_id);
+  const { data: allScenarios } = useKeeperScenarios(league?.league_id);
   const { data: pollResponses, isShared: pollShared } = useDraftPoll(league?.league_id);
 
   const myRosterId = useMemo(
@@ -54,21 +54,13 @@ export default function HomePage() {
     if (!team) return null;
     const roster = data.currentRosters.find((r) => r.roster_id === myRosterId);
     const owner = data.currentUsers.find((u) => u.user_id === roster?.owner_id);
-    const entry = isShared
-      ? allLeagueKeepers.find((k) => k.rosterId === myRosterId)
-      : allLeagueKeepers[0];
+    const entry = allScenarios.find((k) => k.rosterId === myRosterId);
     return {
       ...team,
       avatarId: owner?.avatar ?? owner?.metadata?.avatar,
       savedCount: entry?.playerIds.length ?? 0,
     };
-  }, [data, myRosterId, allLeagueKeepers, isShared]);
-
-  const declared = useMemo(() => {
-    if (!data || !isShared) return null;
-    const count = allLeagueKeepers.filter((k) => k.playerIds.length > 0).length;
-    return { count, total: data.teams.length };
-  }, [data, allLeagueKeepers, isShared]);
+  }, [data, myRosterId, allScenarios]);
 
   const pollPending = useMemo(() => {
     if (!pollShared || !data || myRosterId == null) return false;
@@ -154,8 +146,8 @@ export default function HomePage() {
                   )}
                 >
                   {myTeam.savedCount > 0
-                    ? `${myTeam.savedCount} of ${MAX_KEEPERS_PER_TEAM} keepers saved`
-                    : "No keepers saved yet"}
+                    ? `${myTeam.savedCount} of ${MAX_KEEPERS_PER_TEAM} in your scenario`
+                    : "No keepers in your scenario yet"}
                 </div>
               </div>
             </div>
@@ -173,33 +165,6 @@ export default function HomePage() {
                 My team
               </Link>
             </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {/* League-wide keeper declaration progress (shared mode only). */}
-      {declared && (
-        <Card>
-          <CardBody className="space-y-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-sm font-medium text-ink-800">
-                Keepers declared across the league
-              </span>
-              <span className="text-sm tabular-nums text-ink-500">
-                {declared.count} / {declared.total} teams
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-ink-100">
-              <div
-                className="h-full rounded-full bg-brand-500 transition-[width]"
-                style={{
-                  width: `${declared.total ? (declared.count / declared.total) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            <Link href="/teams" className="inline-block text-sm text-brand-700 underline">
-              See who&apos;s declared →
-            </Link>
           </CardBody>
         </Card>
       )}
@@ -226,9 +191,8 @@ export default function HomePage() {
 
       <p className="text-xs text-ink-400">
         {season && <span>Season {season} · </span>}
-        {isShared
-          ? "Shared league mode — keeper picks are visible to everyone."
-          : "Local mode — keeper picks are saved to this device only."}
+        Keeper scenarios are saved on this device. The draft date poll is shared
+        league-wide when Supabase is configured.
       </p>
     </div>
   );

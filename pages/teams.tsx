@@ -9,7 +9,10 @@ import {
   useKeeperHelperData,
 } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
-import { useLeagueKeepers } from "../lib/leagueState";
+import {
+  allTeamsSubmittedOfficialKeepers,
+  officialKeepersByRoster,
+} from "../lib/officialKeepers";
 import { cn } from "../lib/cn";
 
 interface TeamRow {
@@ -17,7 +20,8 @@ interface TeamRow {
   teamName: string;
   ownerName: string;
   avatarId?: string | null;
-  keeperCount: number | null; // null = unknown (local mode, other teams)
+  /** Official Sleeper keepers — null while declarations are still hidden. */
+  keeperCount: number | null;
   extra: number[];
   missing: number[];
   isMine: boolean;
@@ -29,7 +33,20 @@ export default function TeamsPage() {
     useCurrentLeague();
   const { data, isLoading: dataLoading, error: dataError } =
     useKeeperHelperData(league, season);
-  const { data: allKeepers, isShared } = useLeagueKeepers(league?.league_id);
+
+  const officialVisible = useMemo(
+    () =>
+      allTeamsSubmittedOfficialKeepers(
+        data?.currentRosters,
+        data?.teams.length ?? 0,
+      ),
+    [data],
+  );
+
+  const officialByRoster = useMemo(
+    () => officialKeepersByRoster(data?.currentRosters),
+    [data],
+  );
 
   const rows = useMemo<TeamRow[]>(() => {
     if (!data) return [];
@@ -42,13 +59,9 @@ export default function TeamsPage() {
       const delta = data.deltas.get(t.rosterId);
       const isMine = t.rosterId === myRosterId;
 
-      let keeperCount: number | null = null;
-      if (isShared) {
-        keeperCount =
-          allKeepers.find((k) => k.rosterId === t.rosterId)?.playerIds.length ?? 0;
-      } else if (isMine) {
-        keeperCount = allKeepers[0]?.playerIds.length ?? 0;
-      }
+      const keeperCount = officialVisible
+        ? (officialByRoster.get(t.rosterId)?.length ?? 0)
+        : null;
 
       return {
         rosterId: t.rosterId,
@@ -62,12 +75,11 @@ export default function TeamsPage() {
       };
     });
 
-    // Your team first, then alphabetical.
     return list.sort((a, b) => {
       if (a.isMine !== b.isMine) return a.isMine ? -1 : 1;
       return a.teamName.localeCompare(b.teamName);
     });
-  }, [data, username, allKeepers, isShared]);
+  }, [data, username, officialVisible, officialByRoster]);
 
   const loading = leagueLoading || dataLoading;
   const error = leagueError ?? dataError;
@@ -86,10 +98,17 @@ export default function TeamsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Teams</h1>
         <p className="text-sm text-ink-500">
-          Every roster in the league — keepers declared, picks gained and lost.
-          Tap a team for the full breakdown.
+          Every roster in the league — official keepers (once everyone has
+          declared in Sleeper), plus picks gained and lost.
         </p>
       </div>
+
+      {!officialVisible && data && (
+        <div className="rounded-lg border border-ink-200 bg-ink-50 px-4 py-2 text-sm text-ink-700">
+          Official keeper counts stay hidden until every team has submitted in
+          Sleeper.
+        </div>
+      )}
 
       {error && (
         <Card>
@@ -135,7 +154,7 @@ export default function TeamsPage() {
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
-                    {t.keeperCount != null && (
+                    {t.keeperCount != null ? (
                       <span
                         className={cn(
                           "rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums",
@@ -145,6 +164,10 @@ export default function TeamsPage() {
                         )}
                       >
                         {t.keeperCount} {t.keeperCount === 1 ? "keeper" : "keepers"}
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-500">
+                        Pending
                       </span>
                     )}
                     <svg
@@ -165,13 +188,6 @@ export default function TeamsPage() {
             ))}
           </ul>
         </Card>
-      )}
-
-      {!isShared && (
-        <p className="text-xs text-ink-400">
-          Local mode — keeper counts are only visible for your own team. Set up
-          Supabase to see everyone&apos;s declarations.
-        </p>
       )}
     </div>
   );

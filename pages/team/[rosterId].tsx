@@ -2,7 +2,11 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useCurrentLeague, useKeeperHelperData } from "../../lib/leagueHooks";
-import { useLeagueKeepers } from "../../lib/leagueState";
+import { useKeeperScenarios } from "../../lib/leagueState";
+import {
+  allTeamsSubmittedOfficialKeepers,
+  officialKeepersByRoster,
+} from "../../lib/officialKeepers";
 import { Avatar } from "../../components/ui/Avatar";
 import { Card, CardBody, CardHeader, CardTitle } from "../../components/ui/Card";
 import { Table, TBody, TD, TH, THead, TR } from "../../components/ui/Table";
@@ -19,7 +23,26 @@ export default function TeamDetailPage() {
 
   const { league, season, isLoading: leagueLoading } = useCurrentLeague();
   const { data, isLoading } = useKeeperHelperData(league, season);
-  const { data: allKeepers } = useLeagueKeepers(league?.league_id);
+  const { data: scenarios } = useKeeperScenarios(league?.league_id);
+
+  const officialVisible = useMemo(
+    () =>
+      allTeamsSubmittedOfficialKeepers(
+        data?.currentRosters,
+        data?.teams.length ?? 0,
+      ),
+    [data],
+  );
+
+  const officialKeepers = useMemo(() => {
+    if (!officialVisible || !data) return [];
+    return officialKeepersByRoster(data.currentRosters).get(rosterId) ?? [];
+  }, [officialVisible, data, rosterId]);
+
+  const scenarioKeepers = useMemo(() => {
+    const entry = scenarios.find((k) => k.rosterId === rosterId);
+    return entry?.playerIds ?? [];
+  }, [scenarios, rosterId]);
 
   const team = useMemo(() => {
     if (!data || isNaN(rosterId)) return null;
@@ -31,11 +54,6 @@ export default function TeamDetailPage() {
     const delta = data.deltas.get(rosterId);
     return { ...t, roster, owner, players, delta };
   }, [data, rosterId]);
-
-  const savedKeepers = useMemo(() => {
-    const entry = allKeepers.find((k) => k.rosterId === rosterId);
-    return entry?.playerIds ?? [];
-  }, [allKeepers, rosterId]);
 
   if (leagueLoading || isLoading) {
     return (
@@ -59,6 +77,26 @@ export default function TeamDetailPage() {
   }
 
   const positionGroups = ["QB", "RB", "WR", "TE"] as const;
+
+  const keeperList = (playerIds: string[]) => {
+    if (playerIds.length === 0) {
+      return <p className="text-sm text-ink-500">None.</p>;
+    }
+    return (
+      <ul className="space-y-1 text-sm">
+        {playerIds.map((pid) => {
+          const p = team.players.find((pp) => pp.playerId === pid);
+          if (!p) return null;
+          return (
+            <li key={pid} className="flex items-center justify-between">
+              <span>{p.name}</span>
+              <span className="text-xs text-ink-500">R{p.keeperRound}</span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -86,29 +124,27 @@ export default function TeamDetailPage() {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardTitle>Saved Keepers</CardTitle>
+            <CardTitle>Your scenario</CardTitle>
           </CardHeader>
           <CardBody>
-            {savedKeepers.length === 0 ? (
-              <p className="text-sm text-ink-500">None yet.</p>
+            <p className="mb-2 text-xs text-ink-500">Private to this device.</p>
+            {keeperList(scenarioKeepers)}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Official (Sleeper)</CardTitle>
+          </CardHeader>
+          <CardBody>
+            {officialVisible ? (
+              keeperList(officialKeepers)
             ) : (
-              <ul className="space-y-1 text-sm">
-                {savedKeepers.map((pid) => {
-                  const p = team.players.find((pp) => pp.playerId === pid);
-                  if (!p) return null;
-                  return (
-                    <li key={pid} className="flex items-center justify-between">
-                      <span>{p.name}</span>
-                      <span className="text-xs text-ink-500">
-                        R{p.keeperRound}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <p className="text-sm text-ink-500">
+                Hidden until every team has declared in Sleeper.
+              </p>
             )}
           </CardBody>
         </Card>

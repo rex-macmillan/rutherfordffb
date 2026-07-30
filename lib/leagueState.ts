@@ -1,17 +1,15 @@
 /**
- * Keeper selections shared across the league.
+ * Keeper draft scenarios — private to this browser.
  *
- * - When Supabase is configured, every manager's selections are stored in the
- *   `keeper_selections` table and visible to everyone in the league.
- * - When Supabase isn't configured, selections persist to localStorage only.
+ * What-if keeper sets for any roster, used to model the draft board. Not
+ * shared across managers. Official Sleeper declarations are read separately
+ * via lib/officialKeepers.ts and gated until everyone submits in Sleeper.
  *
- * The two modes have the same shape and the same React-facing hooks so pages
- * never branch on the storage backend.
+ * Supabase is used for the draft date poll only (lib/pollState.ts).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isSupabaseEnabled, supabase } from "./supabase";
 
 export interface RosterKeepers {
   rosterId: number;
@@ -21,206 +19,190 @@ export interface RosterKeepers {
   updatedAt?: string;
 }
 
-const LOCAL_KEY = (leagueId: string) => `keepers-${leagueId}`;
+const LOCAL_KEY = (leagueId: string) => `keeper-scenarios-${leagueId}`;
 
-// ---------- localStorage ----------
-
-interface LocalShape {
-  ids?: string[];
-  slots?: Record<string, number>;
+interface StoredRoster {
+  playerIds: string[];
+  slots: Record<string, number>;
 }
 
-function readLocal(leagueId: string): { ids: string[]; slots: Record<string, number> } {
-  if (typeof window === "undefined") return { ids: [], slots: {} };
+type StoredScenarios = Record<string, StoredRoster>;
+
+function readStore(leagueId: string): StoredScenarios {
+  if (typeof window === "undefined") return {};
   const raw = window.localStorage.getItem(LOCAL_KEY(leagueId));
-  if (!raw) return { ids: [], slots: {} };
+  if (!raw) return migrateLegacyStore(leagueId);
   try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return { ids: parsed as string[], slots: {} }; // legacy
-    const obj = parsed as LocalShape;
-    return { ids: obj.ids ?? [], slots: obj.slots ?? {} };
+    return JSON.parse(raw) as StoredScenarios;
   } catch {
-    return { ids: [], slots: {} };
+    return {};
   }
 }
 
-function writeLocal(leagueId: string, ids: string[], slots: Record<string, number>) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LOCAL_KEY(leagueId), JSON.stringify({ ids, slots }));
+/** Previous key stored a single roster blob as rosterId -1. */
+function migrateLegacyStore(leagueId: string): StoredScenarios {
+  if (typeof window === "undefined") return {};
+  const legacyKey = `keepers-${leagueId}`;
+  const raw = window.localStorage.getItem(legacyKey);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    const ids = Array.isArray(parsed) ? parsed : parsed?.ids ?? [];
+    const slots = Array.isArray(parsed) ? {} : parsed?.slots ?? {};
+    if (!ids.length) return {};
+    const store: StoredScenarios = {
+      "-1": { playerIds: ids as string[], slots },
+    };
+    writeStore(leagueId, store);
+    window.localStorage.removeItem(legacyKey);
+    return store;
+  } catch {
+    return {};
+  }
 }
 
-function clearLocal(leagueId: string) {
+function writeStore(leagueId: string, store: StoredScenarios) {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(LOCAL_KEY(leagueId));
+  window.localStorage.setItem(LOCAL_KEY(leagueId), JSON.stringify(store));
 }
 
-// ---------- Supabase ----------
-
-async function fetchAllKeepers(leagueId: string): Promise<RosterKeepers[]> {
-  if (!supabase) return [];
-  const { data, error } = await supabase
-    .from("keeper_selections")
-    .select("roster_id, player_ids, slot_overrides, updated_by, updated_at")
-    .eq("league_id", leagueId);
-  if (error) throw error;
-  return (data ?? []).map((r: any) => ({
-    rosterId: r.roster_id,
-    playerIds: r.player_ids ?? [],
-    slotOverrides: r.slot_overrides ?? {},
-    updatedBy: r.updated_by ?? undefined,
-    updatedAt: r.updated_at ?? undefined,
+function storeToEntries(store: StoredScenarios): RosterKeepers[] {
+  return Object.entries(store).map(([rid, v]) => ({
+    rosterId: Number(rid),
+    playerIds: v.playerIds ?? [],
+    slotOverrides: v.slots ?? {},
   }));
 }
 
-async function upsertKeepers(
-  leagueId: string,
+function upsertStoreRoster(
+  store: StoredScenarios,
   rosterId: number,
   playerIds: string[],
-  slotOverrides: Record<string, number>,
-  updatedBy: string | undefined,
-) {
-  if (!supabase) return;
-  const { error } = await supabase.from("keeper_selections").upsert(
-    {
-      league_id: leagueId,
-      roster_id: rosterId,
-      player_ids: playerIds,
-      slot_overrides: slotOverrides,
-      updated_by: updatedBy ?? null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "league_id,roster_id" },
-  );
-  if (error) throw error;
+  slots: Record<string, number>,
+): StoredScenarios {
+  const next = { ...store };
+  if (playerIds.length === 0) {
+    delete next[String(rosterId)];
+  } else {
+    next[String(rosterId)] = { playerIds, slots };
+  }
+  return next;
 }
-
-async function deleteKeepers(leagueId: string, rosterId: number) {
-  if (!supabase) return;
-  const { error } = await supabase
-    .from("keeper_selections")
-    .delete()
-    .eq("league_id", leagueId)
-    .eq("roster_id", rosterId);
-  if (error) throw error;
-}
-
-// ---------- React hook ----------
 
 /**
- * League-wide keeper selections. Returns ALL rosters' selections when
- * Supabase is on, or just this device's selections when not.
+ * All roster scenarios saved on this device for a league.
  */
-export function useLeagueKeepers(leagueId: string | undefined) {
+export function useKeeperScenarios(leagueId: string | undefined) {
   const qc = useQueryClient();
 
-  // Read path.
   const query = useQuery<RosterKeepers[]>({
-    queryKey: ["leagueState", "keepers", leagueId, isSupabaseEnabled],
+    queryKey: ["leagueState", "keeperScenarios", leagueId],
     queryFn: async () => {
       if (!leagueId) return [];
-      if (isSupabaseEnabled) return fetchAllKeepers(leagueId);
-      const local = readLocal(leagueId);
-      // Without a roster context here, we expose local data as roster_id = -1
-      // and let callers re-map. (Caller knows their own rosterId.)
-      return [
-        {
-          rosterId: -1,
-          playerIds: local.ids,
-          slotOverrides: local.slots,
-        },
-      ];
+      return storeToEntries(readStore(leagueId));
     },
     enabled: !!leagueId,
-    staleTime: 30_000,
+    staleTime: 0,
   });
 
-  // Write path.
-  const save = useCallback(
+  const saveScenarios = useCallback(
+    async (entries: RosterKeepers[]) => {
+      if (!leagueId) return;
+      const store: StoredScenarios = {};
+      entries.forEach((e) => {
+        if (e.playerIds.length === 0) return;
+        store[String(e.rosterId)] = {
+          playerIds: e.playerIds,
+          slots: e.slotOverrides,
+        };
+      });
+      writeStore(leagueId, store);
+      qc.invalidateQueries({ queryKey: ["leagueState", "keeperScenarios", leagueId] });
+    },
+    [leagueId, qc],
+  );
+
+  const saveRoster = useCallback(
     async (params: {
       rosterId: number;
       playerIds: string[];
       slotOverrides: Record<string, number>;
-      updatedBy?: string;
     }) => {
       if (!leagueId) return;
-      if (isSupabaseEnabled) {
-        await upsertKeepers(
-          leagueId,
-          params.rosterId,
-          params.playerIds,
-          params.slotOverrides,
-          params.updatedBy,
-        );
-      } else {
-        writeLocal(leagueId, params.playerIds, params.slotOverrides);
-      }
-      qc.invalidateQueries({ queryKey: ["leagueState", "keepers", leagueId] });
+      const store = upsertStoreRoster(
+        readStore(leagueId),
+        params.rosterId,
+        params.playerIds,
+        params.slotOverrides,
+      );
+      writeStore(leagueId, store);
+      qc.invalidateQueries({ queryKey: ["leagueState", "keeperScenarios", leagueId] });
     },
     [leagueId, qc],
   );
 
-  const clear = useCallback(
+  const clearRoster = useCallback(
     async (rosterId: number) => {
       if (!leagueId) return;
-      if (isSupabaseEnabled) {
-        await deleteKeepers(leagueId, rosterId);
-      } else {
-        clearLocal(leagueId);
-      }
-      qc.invalidateQueries({ queryKey: ["leagueState", "keepers", leagueId] });
+      const store = { ...readStore(leagueId) };
+      delete store[String(rosterId)];
+      writeStore(leagueId, store);
+      qc.invalidateQueries({ queryKey: ["leagueState", "keeperScenarios", leagueId] });
     },
     [leagueId, qc],
   );
+
+  const clearAll = useCallback(async () => {
+    if (!leagueId) return;
+    writeStore(leagueId, {});
+    qc.invalidateQueries({ queryKey: ["leagueState", "keeperScenarios", leagueId] });
+  }, [leagueId, qc]);
 
   return {
     data: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
-    save,
-    clear,
-    isShared: isSupabaseEnabled,
+    saveScenarios,
+    saveRoster,
+    clearRoster,
+    clearAll,
   };
 }
 
-/**
- * Convenience: subset of league-wide keepers for one roster. Falls through to
- * localStorage when Supabase isn't on.
- */
-export function useRosterKeepers(leagueId: string | undefined, rosterId: number | undefined) {
-  const all = useLeagueKeepers(leagueId);
-  const [mine, setMine] = useState<RosterKeepers | null>(null);
+/** @deprecated Use useKeeperScenarios — name kept for minimal call-site churn. */
+export function useLeagueKeepers(leagueId: string | undefined) {
+  const s = useKeeperScenarios(leagueId);
+  return {
+    data: s.data,
+    isLoading: s.isLoading,
+    error: s.error,
+    save: s.saveRoster,
+    saveScenarios: s.saveScenarios,
+    clear: s.clearRoster,
+    clearAll: s.clearAll,
+    isShared: false as const,
+  };
+}
 
-  useEffect(() => {
-    if (!leagueId || rosterId == null) {
-      setMine(null);
-      return;
-    }
-    if (isSupabaseEnabled) {
-      const found = all.data.find((r) => r.rosterId === rosterId);
-      setMine(
-        found ?? {
+export function useRosterKeepers(leagueId: string | undefined, rosterId: number | undefined) {
+  const all = useKeeperScenarios(leagueId);
+  const mine =
+    rosterId != null
+      ? all.data.find((r) => r.rosterId === rosterId) ?? {
           rosterId,
           playerIds: [],
           slotOverrides: {},
-        },
-      );
-    } else {
-      // localStorage doesn't know rosterId, just use the only entry.
-      const local = all.data[0];
-      setMine({
-        rosterId,
-        playerIds: local?.playerIds ?? [],
-        slotOverrides: local?.slotOverrides ?? {},
-      });
-    }
-  }, [leagueId, rosterId, all.data]);
+        }
+      : null;
 
   return {
     keepers: mine,
     isLoading: all.isLoading,
-    save: all.save,
-    clear: all.clear,
-    isShared: all.isShared,
+    save: all.saveRoster,
+    saveScenarios: all.saveScenarios,
+    clear: all.clearRoster,
+    clearAll: all.clearAll,
+    isShared: false as const,
     allRosters: all.data,
   };
 }

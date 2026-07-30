@@ -35,6 +35,8 @@ export interface Roster {
   owner_id: string;
   players: string[];
   starters: string[];
+  /** Official keeper locks in Sleeper. null/undefined = not submitted yet. */
+  keepers?: string[] | null;
   settings?: Record<string, any>;
 }
 

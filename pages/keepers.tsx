@@ -14,7 +14,7 @@ import {
   useKeeperHelperData,
 } from "../lib/leagueHooks";
 import { useIdentity } from "../lib/identity";
-import { useLeagueKeepers } from "../lib/leagueState";
+import { useKeeperScenarios, type RosterKeepers } from "../lib/leagueState";
 import {
   assignKeeperSlots,
   MAX_KEEPERS_PER_TEAM,
@@ -24,6 +24,15 @@ import { cn } from "../lib/cn";
 
 /** "all" = every rostered player + ranked free agents; a number = one roster. */
 type TeamFilter = "all" | number;
+
+function scenarioMapFromEntries(entries: RosterKeepers[]): Map<number, Set<string>> {
+  const out = new Map<number, Set<string>>();
+  entries.forEach((e) => {
+    if (e.rosterId < 0) return;
+    out.set(e.rosterId, new Set(e.playerIds));
+  });
+  return out;
+}
 
 export default function KeepersPage() {
   const { username } = useIdentity();
@@ -42,11 +51,11 @@ export default function KeepersPage() {
   } = useKeeperHelperData(league, season);
 
   const {
-    data: allLeagueKeepers,
-    save: persistKeepers,
-    clear: clearPersistedKeepers,
-    isShared,
-  } = useLeagueKeepers(league?.league_id);
+    data: savedScenarios,
+    saveScenarios,
+    clearRoster,
+    clearAll,
+  } = useKeeperScenarios(league?.league_id);
 
   const myRosterId = useMemo<number | undefined>(() => {
     if (!data) return undefined;
@@ -56,30 +65,25 @@ export default function KeepersPage() {
   const [teamFilter, setTeamFilter] = useState<TeamFilter>("all");
   const [selectedPos, setSelectedPos] = useState<string | "all">("all");
   const [showDraftDetails, setShowDraftDetails] = useState(false);
-  const [selectedKeepers, setSelectedKeepers] = useState<Set<string>>(new Set());
-  const [savedKeepers, setSavedKeepers] = useState<Set<string>>(new Set());
+  const [scenario, setScenario] = useState<Map<number, Set<string>>>(new Map());
+  const [savedScenario, setSavedScenario] = useState<Map<number, Set<string>>>(
+    new Map(),
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data) return;
-    if (isShared && myRosterId != null) {
-      const mine = allLeagueKeepers.find((r) => r.rosterId === myRosterId);
-      const ids = new Set(mine?.playerIds ?? []);
-      setSavedKeepers(ids);
-      setSelectedKeepers(ids);
-    } else {
-      const local = allLeagueKeepers[0];
-      const ids = new Set(local?.playerIds ?? []);
-      setSavedKeepers(ids);
-      setSelectedKeepers(ids);
-    }
-  }, [data, allLeagueKeepers, isShared, myRosterId]);
+    const map = scenarioMapFromEntries(savedScenarios);
+    setScenario(map);
+    setSavedScenario(map);
+  }, [data, savedScenarios]);
 
   const positions = useMemo(
     () => Array.from(new Set(data?.rows.map((r) => r.position) ?? [])).sort(),
     [data?.rows],
   );
 
-  // Your own roster sorts to the top of the filter; the rest go alphabetically.
   const teamOptions = useMemo(() => {
     if (!data) return [];
     const sorted = [...data.teams].sort((a, b) =>
@@ -106,6 +110,15 @@ export default function KeepersPage() {
     [filteredByTeam, selectedPos],
   );
 
+  const selectedKeepers = useMemo(() => {
+    const out = new Set<string>();
+    filteredPlayers.forEach((p) => {
+      if (p.rosterId < 0) return;
+      if (scenario.get(p.rosterId)?.has(p.playerId)) out.add(p.playerId);
+    });
+    return out;
+  }, [filteredPlayers, scenario]);
+
   const missingByRoster = useMemo(
     () => (data ? missingByRosterFromDeltas(data.deltas) : new Map()),
     [data],
@@ -120,26 +133,35 @@ export default function KeepersPage() {
     return out;
   }, [data]);
 
-  const computeSlotsForSave = (): Record<string, number> => {
-    if (!data) return {};
-    const candidates = data.rows
-      .filter((p) => selectedKeepers.has(p.playerId) && p.keeperRound != null)
-      .map((p) => ({
-        playerId: p.playerId,
-        rosterId: p.rosterId,
-        cost: p.keeperRound!,
-      }));
-    const { slots } = assignKeeperSlots(candidates, missingByRoster);
-    return Object.fromEntries(slots);
+  const buildScenarioEntries = (): RosterKeepers[] => {
+    if (!data) return [];
+    const rosterIds = new Set<number>();
+    scenario.forEach((_, rid) => rosterIds.add(rid));
+
+    return Array.from(rosterIds).map((rosterId) => {
+      const playerIds = Array.from(scenario.get(rosterId) ?? []);
+      const candidates = data.rows
+        .filter((p) => playerIds.includes(p.playerId) && p.keeperRound != null)
+        .map((p) => ({
+          playerId: p.playerId,
+          rosterId: p.rosterId,
+          cost: p.keeperRound!,
+        }));
+      const { slots } = assignKeeperSlots(candidates, missingByRoster);
+      return {
+        rosterId,
+        playerIds,
+        slotOverrides: Object.fromEntries(slots),
+      };
+    });
   };
 
-  // ----- Build panel tabs for this page -----
-  const savedKeepersForPanel = useMemo(() => {
+  const scenarioKeepersForPanel = useMemo(() => {
     if (!data) return [];
-    const rosters = data.currentRosters;
     const userByOwner = new Map(data.currentUsers.map((u) => [u.user_id, u]));
-    return allLeagueKeepers.flatMap((entry) => {
-      const roster = rosters.find((r) => r.roster_id === entry.rosterId);
+    return savedScenarios.flatMap((entry) => {
+      if (entry.rosterId < 0 || entry.playerIds.length === 0) return [];
+      const roster = data.currentRosters.find((r) => r.roster_id === entry.rosterId);
       const teamName =
         userByOwner.get(roster?.owner_id ?? "")?.metadata?.team_name ||
         userByOwner.get(roster?.owner_id ?? "")?.display_name ||
@@ -154,7 +176,7 @@ export default function KeepersPage() {
         };
       });
     });
-  }, [data, allLeagueKeepers]);
+  }, [data, savedScenarios]);
 
   const panelTabs = useMemo(() => {
     if (!data) return [];
@@ -172,25 +194,81 @@ export default function KeepersPage() {
         ).length,
         body: <DraftDeltaPanel teams={data.teams} deltas={data.deltas} />,
       },
-      ...(savedKeepersForPanel.length > 0
+      ...(scenarioKeepersForPanel.length > 0
         ? [
             {
               id: "keepers",
-              label: "Keepers",
-              count: savedKeepersForPanel.length,
-              body: <KeepersListPanel players={savedKeepersForPanel} />,
+              label: "Scenario",
+              count: scenarioKeepersForPanel.length,
+              body: <KeepersListPanel players={scenarioKeepersForPanel} />,
             },
           ]
         : []),
     ];
-  }, [data, savedKeepersForPanel]);
+  }, [data, scenarioKeepersForPanel]);
 
   usePanelTabs(panelTabs);
 
   const loading = leagueLoading || dataLoading;
   const error = leagueError ?? dataError;
-  const dirty = !areSetsEqual(selectedKeepers, savedKeepers);
-  const canSave = !!league && (!isShared || myRosterId != null);
+  const dirty = !areScenarioMapsEqual(scenario, savedScenario);
+  const totalScenarioCount = useMemo(() => {
+    let n = 0;
+    scenario.forEach((set) => {
+      n += set.size;
+    });
+    return n;
+  }, [scenario]);
+
+  const handleSelectionChange = (newSel: Set<string>) => {
+    setScenario((prev) => {
+      const next = new Map(prev);
+      filteredPlayers.forEach((p) => {
+        if (p.rosterId < 0) return;
+        const rosterSet = new Set(next.get(p.rosterId) ?? []);
+        if (newSel.has(p.playerId)) rosterSet.add(p.playerId);
+        else rosterSet.delete(p.playerId);
+        if (rosterSet.size === 0) next.delete(p.rosterId);
+        else next.set(p.rosterId, rosterSet);
+      });
+      return next;
+    });
+  };
+
+  const handleSave = async () => {
+    if (!league) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveScenarios(buildScenarioEntries());
+      setSavedScenario(new Map(scenario));
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Could not save scenario.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (!league) return;
+    if (teamFilter === "all") {
+      await clearAll();
+      setScenario(new Map());
+      setSavedScenario(new Map());
+      return;
+    }
+    await clearRoster(teamFilter);
+    setScenario((prev) => {
+      const next = new Map(prev);
+      next.delete(teamFilter);
+      return next;
+    });
+    setSavedScenario((prev) => {
+      const next = new Map(prev);
+      next.delete(teamFilter);
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -216,10 +294,9 @@ export default function KeepersPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Keepers</h1>
         <p className="text-sm text-ink-500">
-          Pick up to {MAX_KEEPERS_PER_TEAM} keepers.{" "}
-          {isShared
-            ? "Shared league mode — your selections are visible to everyone."
-            : "Local mode — selections saved to this device only."}
+          Draft scenario planner — model keepers for any team to preview the
+          board. Saved on this device only; official Sleeper keepers stay hidden
+          until everyone declares.
           {season && (
             <>
               {" · "}
@@ -229,13 +306,11 @@ export default function KeepersPage() {
         </p>
       </div>
 
-      {/* Team + position filters */}
       {data && (
         <div className="space-y-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-2 text-sm text-ink-600">
               Team
-              {/* text-base keeps iOS from zooming the viewport on focus. */}
               <select
                 value={String(teamFilter)}
                 onChange={(e) =>
@@ -336,7 +411,7 @@ export default function KeepersPage() {
           <PlayerTable
             players={filteredPlayers}
             selected={selectedKeepers}
-            onSelectionChange={(set) => setSelectedKeepers(new Set(set))}
+            onSelectionChange={handleSelectionChange}
             missing={missingForTable}
             showDraftDetails={showDraftDetails}
             maxKeepers={MAX_KEEPERS_PER_TEAM}
@@ -358,60 +433,41 @@ export default function KeepersPage() {
             </span>
           </div>
 
-          {/* Spacer so the floating Save/Clear bar can't hide the last card
-              at full scroll on mobile. */}
-          {(dirty || selectedKeepers.size > 0) && (
+          {(dirty || totalScenarioCount > 0) && (
             <div aria-hidden className="h-14 md:hidden" />
           )}
 
           <div className="fixed right-4 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50 flex gap-2 md:right-5 md:bottom-5">
             {dirty && (
-              <Button
-                variant="success"
-                disabled={!canSave}
-                onClick={async () => {
-                  if (!league) return;
-                  const slots = computeSlotsForSave();
-                  const ids = Array.from(selectedKeepers);
-                  const rosterId = isShared ? myRosterId : -1;
-                  if (rosterId == null) return;
-                  await persistKeepers({
-                    rosterId,
-                    playerIds: ids,
-                    slotOverrides: slots,
-                    updatedBy: username,
-                  });
-                  setSavedKeepers(new Set(selectedKeepers));
-                }}
-              >
-                Save Keepers
+              <Button variant="success" disabled={saving || !league} onClick={handleSave}>
+                Save scenario
               </Button>
             )}
-            {selectedKeepers.size > 0 && (
-              <Button
-                variant="danger"
-                disabled={!canSave}
-                onClick={async () => {
-                  if (!league) return;
-                  const rosterId = isShared ? myRosterId : -1;
-                  if (rosterId == null) return;
-                  await clearPersistedKeepers(rosterId);
-                  setSelectedKeepers(new Set());
-                  setSavedKeepers(new Set());
-                }}
-              >
-                Clear
+            {totalScenarioCount > 0 && (
+              <Button variant="danger" disabled={!league} onClick={handleClear}>
+                {teamFilter === "all" ? "Clear all" : "Clear team"}
               </Button>
             )}
           </div>
+
+          {saveError && (
+            <p className="text-sm text-red-700">{saveError}</p>
+          )}
         </>
       )}
     </div>
   );
 }
 
-function areSetsEqual(a: Set<string>, b: Set<string>) {
+function areScenarioMapsEqual(
+  a: Map<number, Set<string>>,
+  b: Map<number, Set<string>>,
+) {
   if (a.size !== b.size) return false;
-  for (const v of a) if (!b.has(v)) return false;
+  for (const [rid, setA] of a) {
+    const setB = b.get(rid);
+    if (!setB || setA.size !== setB.size) return false;
+    for (const id of setA) if (!setB.has(id)) return false;
+  }
   return true;
 }
