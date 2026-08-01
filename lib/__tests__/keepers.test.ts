@@ -13,6 +13,7 @@ import {
   computeDraftDeltas,
   computeKeeperCost,
   missingByRosterFromDeltas,
+  resolveKeeperSlot,
 } from "../keepers";
 
 // ---------- §2 round mapping ----------
@@ -161,6 +162,42 @@ describe("assignKeeperSlots", () => {
     );
     expect(slots.get("a")).toBe(1);
     expect(slots.get("b")).toBe(3);
+  });
+
+  it("§6: traded 5th-round pick forces 5th-round keeper into 4th", () => {
+    const { slots } = assignKeeperSlots(
+      [{ playerId: "x", rosterId: 1, cost: 5 }],
+      new Map([[1, new Set([5])]]),
+    );
+    expect(slots.get("x")).toBe(4);
+  });
+
+  it("§3 + §6: three R4 keepers with R6 traded land in R3, R4, R5", () => {
+    const { slots } = assignKeeperSlots(
+      [
+        { playerId: "a", rosterId: 1, cost: 4 },
+        { playerId: "b", rosterId: 1, cost: 4 },
+        { playerId: "c", rosterId: 1, cost: 4 },
+      ],
+      new Map([[1, new Set([6])]]),
+    );
+    expect(slots.get("a")).toBe(4);
+    expect(slots.get("b")).toBe(5);
+    expect(slots.get("c")).toBe(3);
+  });
+});
+
+describe("resolveKeeperSlot", () => {
+  it("returns ideal when free and owned", () => {
+    expect(resolveKeeperSlot(4, 4, new Set(), () => false)).toBe(4);
+  });
+
+  it("slides earlier when ideal round was traded away", () => {
+    expect(resolveKeeperSlot(5, 5, new Set([5]), () => false)).toBe(4);
+  });
+
+  it("slides later when ideal round is taken by another keeper", () => {
+    expect(resolveKeeperSlot(4, 4, new Set(), (rd) => rd === 4)).toBe(5);
   });
 });
 

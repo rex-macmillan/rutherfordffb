@@ -300,11 +300,13 @@ LEAGUE CONFIG (always relevant)
       R10→R8, R11→R9, R12→R10, R13→R10, R14→R11, R15→R11, R16→R12,
       R17→R12. Waiver FAAB tiers: >$50→R4, $35-49→R5, $20-34→R6, $10-19→R7,
       $5-9→R8, $0-4→R9. Free-agent adds→R10.
-  - §3 (duplicate-round tie-break): if two of YOUR keepers share the
-    same round cost, the second one slides to the NEXT round (later).
-  - §6 (slide-up for missing picks): if you traded away the round your
-    keeper would naturally occupy, the keeper slides EARLIER first
-    (your next-earlier owned round), then later as a fallback.
+  - §3 (keeper slot placement): keepers use picks in rounds you still own.
+    Duplicate round values stack LATER (R, R+1, R+2…). If a keeper's ideal
+    round was traded away, slide EARLIER to the next open pick you own in a
+    lower round (e.g. traded R5 → 5th-round keeper uses R4). Both rules can
+    apply together (three R4 keepers with R6 traded → R3, R4, R5).
+  - §6 (traded picks): missing rounds come from off-season pick trades;
+    re-acquiring a round restores normal placement for that slot.
   - Once you keep a player, their NEXT-YEAR cost re-applies §2 to this
     year's cost (R6 keeper → R5 next year → R4 → R3 → …). Effectively
     a multi-year ladder.

@@ -26,8 +26,7 @@ export const BASE_ROLE = `You are an expert fantasy football analyst for a speci
 
 - Players can be kept indefinitely, but each consecutive keep escalates their cost via the round-mapping table.
 - Trading away a draft pick triggers a 50% insurance fee on next year's buy-in.
-- If your keeper's natural round is gone (traded away), they SLIDE UP to the next-earlier round you own — not down.
-- If two of your keepers cost the same round, they stack into later rounds.
+- Keepers must use picks in rounds you still own. Duplicate round values stack LATER (R, R+1, R+2…). If that ideal round was traded away, slide EARLIER to the next open lower round you own (e.g. traded R5 → 5th-round keeper uses R4).
 - Undrafted/waiver pickups use FAAB tiers (R4–R9) or default to a 10th-round keeper cost for free-agent adds.
 - Entry fees scale with keeper count: $150 (0) / $175 (1) / $225 (2) / $300 (3) / $400 (4). Incremental keeper fees are +$25, +$50, +$75, +$100.
 

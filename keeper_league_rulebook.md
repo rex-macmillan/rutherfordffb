@@ -51,12 +51,18 @@
 
 ---
 
-## 3. Duplicate‑Round Tie‑Breaker
-If multiple keepers carry the same round value:
+## 3. Keeper Slot Placement (Round Ownership)
+Every keeper must consume a draft pick in a round you **still own**. A keeper’s **round value** (from §2) is where it *wants* to go; the rules below adjust that slot when picks are missing or already spoken for.
 
-* **First** player occupies that round.  
-* **Second** slides to the next open round, and so on.  
-* In future seasons, all of those players are treated as if they were drafted in the **original** keeper round (they’ll rise together).
+**Default** — one keeper at round value *R* uses your *R*th‑round pick (e.g. a 5th‑round keeper costs pick 5.04 if you hold 5.04).
+
+**Duplicate round values (§3 tie‑break)** — if you keep **two or more** players with the same round value, they stack into successive rounds you own, moving **later** (numerically larger): first at *R*, second at *R+1*, third at *R+2*, and so on.
+
+**Traded‑away pick (§6 slide‑up)** — if you no longer own the round a keeper would use (because you traded that pick away), that keeper must move **earlier** (numerically smaller) to the next earlier round you still own that is open. Example: you traded away your 5th‑round pick; a player with a 5th‑round keeper value must be kept using your 4th‑round pick instead.
+
+**Both rules together** — apply duplicate stacking first to get each keeper’s *ideal* slot (*R*, *R+1*, *R+2*…), then slide any ideal slot earlier when that round was traded away. Example: three 4th‑round keepers normally land in R4, R5, and R6; if you traded away your 6th‑round pick, they land in **R3, R4, and R5** instead.
+
+*Next‑season costs ignore these temporary slides — escalation always uses each player’s original keeper round value from §2.*
 
 ---
 
@@ -99,14 +105,17 @@ When you keep a player, their round cost consumes your pick in that slot.
     * Payment is non-refundable and is credited toward your entry fee the following year.
     * Example: Team A ships its 6th-round pick for a win-now RB. Team A pays \$75 now (half of \$150) to lock in its spot for next season.
   * **Keeper-Round Integrity**
-    * To keep a player you must still own the exact round that player costs.
-    * If that pick is gone, “slide up” to the next earlier round you *do* own as is available to use.
-    * Only that season’s cost slides up; the player’s long-term keeper round doesn’t change.
+    * Keepers may only use draft picks in rounds you still own (see §3).
+    * If the natural round is traded away, slide **earlier** to the next open pick you own in a lower round — e.g. traded away your 5th → a 5th‑round keeper uses your 4th.
+    * If multiple keepers share a round value, stack **later** (R, R+1, R+2…) before any slide‑up adjustments.
+    * Only that season’s draft slot moves; next year’s keeper cost still follows §2 from the player’s original round value.
     * Examples:
-      * *Slide-Up Example (single keeper)*
-        * → You traded away your 4th-round pick. You want to keep WR Chris Olave (4th-round cost). Olave now costs your 3rd-round pick.
-      * *Slide-Up Example (multiple keepers)*
-        * → You’ve already kept RB Etienne in the 3rd, and the 4th is traded away. You still want to keep Olave (4th cost). Olave slides to your 2nd-round pick (the next earlier one you own). Etienne remains in the 3rd. Next Year: both Olave and Etienne advance based on their original keeper rounds (4th and 3rd), not the temporary slide-up rounds.
+      * *Single keeper, pick traded away*
+        * → You traded away your 5th‑round pick. A player with a 5th‑round keeper value must be kept using your **4th**‑round pick.
+      * *Single keeper, higher round already in use*
+        * → You traded away your 4th‑round pick. You want to keep WR Chris Olave (4th‑round cost) with no other keepers — Olave uses your **3rd**‑round pick.
+      * *Multiple keepers, pick traded away*
+        * → You’ve already kept RB Etienne in the 3rd, and the 4th is traded away. You still want to keep Olave (4th cost). Olave slides to your **2nd**‑round pick (next earlier one you own). Etienne stays in the 3rd. Next year both advance from their original keeper rounds (4th and 3rd), not the temporary slots.
 * **Dropping a player** - All players dropped from their rosters after the draft will retain their keeper eligibility & round-value per the table if they are added by a new team. There is no resetting values or any rules that would make a player who is (a) dropped, (b) claimed on waivers, or (c) cleared waivers receive any special keeper value treatment for the following year.
 
 ---
@@ -134,7 +143,7 @@ When you keep a player, their round cost consumes your pick in that slot.
 | What if I trade a pick away and later reacquire that round? | Insurance isn’t refunded; owning that round again restores normal keeper costs. |
 | Can the insurance deposit transfer to a new manager? | Yes — it stays with the franchise and credits the next manager. |
 | Do undrafted waiver pickups always cost a 6th round? | No — FAAB waiver adds use the tier table (R4–R9 by bid amount). Free-agent adds default to a 10th-round keeper cost. |
-| What if two keepers need the same round after a pick trade? | Apply duplicate-round rule: first keeps that round, next slides up. |
+| What if two keepers need the same round after a pick trade? | Duplicate keepers stack **later** (R, R+1…). If a stacked slot was traded away, that keeper slides **earlier** instead (see §3). |
 | When is the 50% insurance fee due? | Within 24 hours of trade approval; unpaid trades are reversed. |
 
 ---

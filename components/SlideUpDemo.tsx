@@ -37,6 +37,15 @@ const PRESETS: { name: string; keepers: DemoKeeper[]; missing: number[] }[] = [
     missing: [],
   },
   {
+    name: "Three R4 keepers, R6 traded (FAQ example)",
+    keepers: [
+      { id: "a", name: "Keeper A", cost: 4 },
+      { id: "b", name: "Keeper B", cost: 4 },
+      { id: "c", name: "Keeper C", cost: 4 },
+    ],
+    missing: [6],
+  },
+  {
     name: "Trade away both your top picks",
     keepers: [
       { id: "rb", name: "RB stud", cost: 1 },

@@ -146,18 +146,53 @@ export interface SlotAssignment {
 }
 
 /**
+ * Resolve where one keeper lands given its ideal slot.
+ *
+ * - Ideal slot free and owned → use it.
+ * - Ideal slot traded away (§6) → slide to the highest earlier round you
+ *   still own that is open; fall back to a later owned round if none exist.
+ * - Ideal slot owned but taken by another keeper (§3 duplicate) → slide to
+ *   the next later round you still own that is open.
+ */
+export function resolveKeeperSlot(
+  ideal: number,
+  cost: number,
+  missing: Set<number>,
+  isTaken: (round: number) => boolean,
+  maxRound = MAX_DRAFT_ROUND,
+): number {
+  const isUnavailable = (rd: number) => missing.has(rd) || isTaken(rd);
+
+  if (!isUnavailable(ideal)) return ideal;
+
+  if (missing.has(ideal)) {
+    // §6: traded away this round — use an earlier pick you still own.
+    for (let rd = cost - 1; rd >= 1; rd--) {
+      if (!isUnavailable(rd)) return rd;
+    }
+    for (let rd = ideal + 1; rd <= maxRound; rd++) {
+      if (!isUnavailable(rd)) return rd;
+    }
+  } else {
+    // §3: duplicate at this round — stack into the next later owned pick.
+    for (let rd = ideal + 1; rd <= maxRound; rd++) {
+      if (!isUnavailable(rd)) return rd;
+    }
+  }
+
+  return ideal;
+}
+
+/**
  * Assign each keeper a draft round, honoring §3 (duplicate-round tie-break,
  * later round) and §6 (slide-up to earlier round when the pick is missing).
  *
- * Order of operations matches the existing site:
- *  1. Sort by cost ascending so cheap rounds are allocated first.
- *  2. For each keeper:
- *      - If desired round is unavailable because it was *traded away*, try
- *        earlier rounds first (§6 slide-up). Fall back to later if no earlier
- *        round is open.
- *      - If desired round is unavailable because *another keeper already
- *        took it*, move later (§3 tie-break).
- *  3. Honor an explicit `placement` override on the candidate (saved slot).
+ * Order of operations:
+ *  1. Sort by cost ascending so cheaper rounds are allocated first.
+ *  2. For each keeper at cost `c`, the nth keeper at that cost (0-based) tries
+ *     ideal slot `c + n` — first at R4, second at R5, third at R6, etc.
+ *  3. Resolve collisions with `resolveKeeperSlot` (§3 vs §6).
+ *  4. Honor an explicit `placement` override on the candidate (saved slot).
  */
 export function assignKeeperSlots(
   keepers: KeeperCandidate[],
@@ -166,36 +201,24 @@ export function assignKeeperSlots(
   const sorted = [...keepers].sort((a, b) => a.cost - b.cost);
   const taken = new Set<string>();
   const key = (rid: number, rd: number) => `${rid}-${rd}`;
+  /** How many keepers at this (roster, cost) have already been placed. */
+  const costIndex = new Map<string, number>();
 
   const slots = new Map<string, number>();
 
   for (const k of sorted) {
     const missing = missingByRoster.get(k.rosterId) ?? new Set<number>();
-    const isUnavailable = (rd: number) =>
-      taken.has(key(k.rosterId, rd)) || missing.has(rd);
+    const isTaken = (rd: number) => taken.has(key(k.rosterId, rd));
 
-    let desired = k.placement ?? k.cost;
-
-    if (k.placement == null && isUnavailable(desired)) {
-      const missingHere = missing.has(desired);
-
-      if (missingHere) {
-        // §6 slide-up: try earlier rounds first.
-        let earlier = desired - 1;
-        while (earlier >= 1 && isUnavailable(earlier)) earlier -= 1;
-        if (earlier >= 1) {
-          desired = earlier;
-        } else {
-          let later = desired + 1;
-          while (isUnavailable(later)) later += 1;
-          desired = later;
-        }
-      } else {
-        // §3 duplicate-round: slide later.
-        let later = desired + 1;
-        while (isUnavailable(later)) later += 1;
-        desired = later;
-      }
+    let desired: number;
+    if (k.placement != null) {
+      desired = k.placement;
+    } else {
+      const indexKey = `${k.rosterId}-${k.cost}`;
+      const index = costIndex.get(indexKey) ?? 0;
+      costIndex.set(indexKey, index + 1);
+      const ideal = k.cost + index;
+      desired = resolveKeeperSlot(ideal, k.cost, missing, isTaken);
     }
 
     slots.set(k.playerId, desired);
