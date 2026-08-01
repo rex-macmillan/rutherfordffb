@@ -17,9 +17,12 @@ import {
   buildKeeperCostMap,
   calculateKeeperRound,
   computeKeeperCost,
-  UNDRAFTED_KEEPER_ROUND,
 } from "./keepers";
 import { overallPickNumber } from "./draftSlots";
+import {
+  AcquisitionBasis,
+  keeperRoundFromBasis,
+} from "./playerAcquisition";
 import {
   KeeperGrade,
   computeKeeperSurplus,
@@ -85,6 +88,8 @@ interface DeriveInput {
   snakeDraft?: boolean;
   tradedPicks: TradedPick[];
   currentSeason: string;
+  /** Replay of last season's draft + transactions for FAAB / FA cost. */
+  acquisitionBasis?: Map<string, AcquisitionBasis>;
   /** Cap for FC ranks we'll include for free agents. */
   freeAgentRankCutoff?: number;
 }
@@ -174,6 +179,7 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
     draftSlotByRoster,
     slotsProvisional = false,
     snakeDraft = true,
+    acquisitionBasis,
     freeAgentRankCutoff = 200,
   } = input;
 
@@ -213,18 +219,20 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
 
       const roundVal = roundMap.get(pid) ?? null;
       const hist = history.get(pid);
+      const basis = acquisitionBasis?.get(pid);
       const baseRoundRef = hist?.base ?? roundVal;
-      const baseCost = calculateKeeperRound(baseRoundRef);
-      const escalated = keeperCostByPid.get(pid);
+      const draftEscalated = keeperCostByPid.get(pid);
+      const acquisitionOverridesDraft =
+        basis?.kind === "waiver" || basis?.kind === "free_agent";
 
       let keeperCost: number;
-      if (roundVal == null) {
-        // Undrafted last year → 6th-round default (§2).
-        keeperCost = UNDRAFTED_KEEPER_ROUND;
-      } else if (escalated != null) {
-        keeperCost = escalated;
+      if (acquisitionOverridesDraft) {
+        // Waiver / FA re-acquisition resets cost basis (§2 acquisition table).
+        keeperCost = keeperRoundFromBasis(basis);
+      } else if (draftEscalated != null) {
+        keeperCost = draftEscalated;
       } else {
-        keeperCost = baseCost;
+        keeperCost = keeperRoundFromBasis(basis);
       }
 
       const pickNoVal = pickNoMap.get(pid) ?? null;
@@ -232,9 +240,11 @@ export function derivePlayerRows(input: DeriveInput): DeriveResult {
         roundVal == null
           ? Number.POSITIVE_INFINITY
           : roundVal * 100 + (pickNoVal ?? 0);
-      const baseCostFromRound = calculateKeeperRound(roundVal);
+      const baseCostFromRound = calculateKeeperRound(baseRoundRef);
       const escalatedDueToStreak =
-        (hist?.lastKeeper ?? false) && baseCostFromRound !== keeperCost;
+        !acquisitionOverridesDraft &&
+        (hist?.lastKeeper ?? false) &&
+        baseCostFromRound !== keeperCost;
 
       rows.push({
         playerId: pid,

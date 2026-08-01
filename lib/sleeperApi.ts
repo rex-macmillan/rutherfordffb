@@ -63,6 +63,17 @@ export interface TradedPick {
   previous_owner_id: number;
 }
 
+export interface SleeperTransaction {
+  transaction_id: string;
+  type: string;
+  status: string;
+  leg?: number;
+  created?: number;
+  adds?: Record<string, number> | null;
+  drops?: Record<string, number> | null;
+  settings?: { waiver_bid?: number; seq?: number } | null;
+}
+
 export interface SleeperPlayer {
   first_name?: string;
   last_name?: string;
@@ -114,6 +125,9 @@ export const getDraftPicks = (draftId: string) =>
 
 export const getTradedPicks = (leagueId: string) =>
   sleeperJson<TradedPick[]>(`/league/${leagueId}/traded_picks`);
+
+export const getTransactions = (leagueId: string, week: number) =>
+  sleeperJson<SleeperTransaction[]>(`/league/${leagueId}/transactions/${week}`);
 
 export const getPlayers = () => sleeperJson<PlayersBlob>(`/players/nfl`);
 

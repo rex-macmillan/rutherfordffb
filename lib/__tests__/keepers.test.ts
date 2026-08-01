@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   KEEPER_COST_TABLE,
-  UNDRAFTED_KEEPER_ROUND,
+  FREE_AGENT_KEEPER_ROUND,
   calculateKeeperRound,
 } from "../keeperCostTable";
 import {
@@ -26,9 +26,9 @@ describe("calculateKeeperRound (§2)", () => {
     }
   });
 
-  it("returns 6 for undrafted players (null / undefined)", () => {
-    expect(calculateKeeperRound(null)).toBe(UNDRAFTED_KEEPER_ROUND);
-    expect(calculateKeeperRound(undefined)).toBe(UNDRAFTED_KEEPER_ROUND);
+  it("returns 10 for undrafted players (null / undefined)", () => {
+    expect(calculateKeeperRound(null)).toBe(FREE_AGENT_KEEPER_ROUND);
+    expect(calculateKeeperRound(undefined)).toBe(FREE_AGENT_KEEPER_ROUND);
   });
 });
 

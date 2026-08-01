@@ -304,7 +304,7 @@ export function useResolvedDraftSlots(): ResolvedDraftSlots {
   const isLoading =
     rostersQ.isLoading || draftsQ.isLoading || draftQ.isLoading || selOrder.isLoading;
 
-  return useMemo(() => {
+  const resolved = useMemo(() => {
     const rosterIds = rostersQ.data?.map((r) => r.roster_id) ?? [];
     const orderIsOfficial = draftOrderIsOfficial(draftQ.data);
     const scenarioSlotMap =
@@ -324,7 +324,11 @@ export function useResolvedDraftSlots(): ResolvedDraftSlots {
       teamCount: rosterIds.length,
       provisional,
       snake: (draftQ.data?.type ?? "snake") !== "linear",
-      isLoading,
     };
-  }, [rostersQ.data, draftQ.data, selOrder.rows, scenarioPicks, isLoading]);
+  }, [rostersQ.data, draftQ.data, selOrder.rows, scenarioPicks]);
+
+  return {
+    ...resolved,
+    isLoading,
+  };
 }

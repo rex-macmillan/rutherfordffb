@@ -11,10 +11,22 @@
  */
 
 import {
+  calculateAcquisitionKeeperRound,
   calculateKeeperRound,
+  FREE_AGENT_KEEPER_ROUND,
+  keeperRoundFromFaab,
   MAX_DRAFT_ROUND,
   UNDRAFTED_KEEPER_ROUND,
 } from "./keeperCostTable";
+
+export {
+  calculateAcquisitionKeeperRound,
+  calculateKeeperRound,
+  FREE_AGENT_KEEPER_ROUND,
+  keeperRoundFromFaab,
+  MAX_DRAFT_ROUND,
+  UNDRAFTED_KEEPER_ROUND,
+};
 
 // ---------- Types ----------
 
@@ -55,9 +67,6 @@ export interface DraftDelta {
   /** Rounds the team is missing because they were traded away. */
   missing: number[];
 }
-
-// ---------- Re-export ----------
-export { calculateKeeperRound, MAX_DRAFT_ROUND, UNDRAFTED_KEEPER_ROUND };
 
 /** §2: each team may declare at most this many keepers per season. */
 export const MAX_KEEPERS_PER_TEAM = 4;

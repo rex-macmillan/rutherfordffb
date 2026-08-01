@@ -132,7 +132,7 @@ const RECOMMEND_TOOL = {
       keeperCountAdvice: {
         type: "string",
         description:
-          "How many keepers to take. Frame as: '3 keepers ($225) keeps these N positive-equity locks. The 4th (+$75) would be X — is it worth $75 + an Rx pick for that specific player?' Explicitly state the dollar+pick cost of going from 3→4.",
+          "How many keepers to take. Frame as: '3 keepers ($300) keeps these N positive-equity locks. The 4th (+$100) would be X — is it worth $100 + an Rx pick for that specific player?' Explicitly state the dollar+pick cost of going from 3→4.",
       },
       trapsAvoided: {
         type: "array",
@@ -293,11 +293,13 @@ LEAGUE CONFIG (always relevant)
 
   - 12-team league, 1 starting QB, PPR scoring, snake draft, 17 rounds.
   - Max 4 keepers per team (managers may declare 0-4).
-  - Entry fee scales with keeper count: $150 base / $175 (2 keepers) /
-    $225 (3 keepers) / $300 (4 keepers).
+  - Entry fee scales with keeper count: $150 (0 keepers) / $175 (1) /
+    $225 (2) / $300 (3) / $400 (4 keepers).
   - §2 round mapping (drafted_last_year → keeper_cost_this_year):
       R1→R1, R2→R1, R3→R2, R4→R3, R5→R4, R6→R5, R7→R6, R8→R6, R9→R7,
-      R10→R8, R11→R9, R12→R10, R13-R14→R10, R15-R17→R11, undrafted→R6.
+      R10→R8, R11→R9, R12→R10, R13→R10, R14→R11, R15→R11, R16→R12,
+      R17→R12. Waiver FAAB tiers: >$50→R4, $35-49→R5, $20-34→R6, $10-19→R7,
+      $5-9→R8, $0-4→R9. Free-agent adds→R10.
   - §3 (duplicate-round tie-break): if two of YOUR keepers share the
     same round cost, the second one slides to the NEXT round (later).
   - §6 (slide-up for missing picks): if you traded away the round your

@@ -26,14 +26,23 @@ import {
   useLeagueUsers,
   usePlayers,
   useRosters,
+  useSeasonTransactions,
   useTradedPicks,
 } from "./sleeperQueries";
 import { useResolvedDraftSlots } from "./draftOrder";
 import { computeDraftDeltas } from "./keepers";
+import { buildPlayerAcquisitionBasis } from "./playerAcquisition";
 import { derivePlayerRows, DeriveResult, PlayerRow, TeamOption } from "./derivePlayerRows";
 
 export type { CurrentLeagueResult };
 export { useCurrentLeague, usePreviousLeague };
+
+function draftSlotMapKey(map: Map<number, number>): string {
+  return [...map.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([r, s]) => `${r}:${s}`)
+    .join(",");
+}
 
 export interface KeeperHelperData extends DeriveResult {
   deltas: ReturnType<typeof computeDraftDeltas>;
@@ -81,11 +90,13 @@ export function useKeeperHelperData(
   const playersQ = usePlayers();
   const fcQ = useFCData();
   const slots = useResolvedDraftSlots();
+  const slotMapKey = draftSlotMapKey(slots.slotByRoster);
 
   const prevRostersQ = useRosters(prevLeagueId);
   const prevUsersQ = useLeagueUsers(prevLeagueId);
   const prevDraftsQ = useLeagueDrafts(prevLeagueId);
   const prevDraftPicksQ = useDraftPicks(prevDraftsQ.data?.[0]?.draft_id);
+  const prevTransactionsQ = useSeasonTransactions(prevLeagueId);
 
   const chainQ = useLeagueChainDraftPicks(prevLeagueId);
 
@@ -99,6 +110,7 @@ export function useKeeperHelperData(
     prevUsersQ,
     prevDraftsQ,
     prevDraftPicksQ,
+    prevTransactionsQ,
     chainQ,
   ];
 
@@ -118,9 +130,15 @@ export function useKeeperHelperData(
       !prevRostersQ.data ||
       !prevUsersQ.data ||
       !prevDraftPicksQ.data ||
+      prevTransactionsQ.data === undefined ||
       !chainQ.data
     )
       return undefined;
+
+    const acquisitionBasis = buildPlayerAcquisitionBasis(
+      prevDraftPicksQ.data,
+      prevTransactionsQ.data,
+    );
 
     const derived = derivePlayerRows({
       currentRosters: rostersQ.data,
@@ -138,6 +156,7 @@ export function useKeeperHelperData(
       snakeDraft: slots.snake,
       tradedPicks: tradedQ.data,
       currentSeason: season,
+      acquisitionBasis,
     });
 
     const rosterIds = rostersQ.data.map((r) => r.roster_id);
@@ -150,6 +169,8 @@ export function useKeeperHelperData(
       currentUsers: usersQ.data,
       tradedPicks: tradedQ.data,
     };
+  // slotMapKey tracks slots.slotByRoster content without Map reference churn.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     league,
     season,
@@ -161,8 +182,9 @@ export function useKeeperHelperData(
     prevRostersQ.data,
     prevUsersQ.data,
     prevDraftPicksQ.data,
+    prevTransactionsQ.data,
     chainQ.data,
-    slots.slotByRoster,
+    slotMapKey,
     slots.provisional,
     slots.snake,
   ]);

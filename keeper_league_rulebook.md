@@ -4,19 +4,20 @@
 ## 1. League Fees & Keeper Allowance
 | # of Keepers | Total Entry Fee | Incremental Cost | Notes |
 |--------------|---------------:|-----------------:|-------|
-| 0 – 1 | $150 | — | Base entry; keepers optional |
-| 2 | $175 | +$25 | Second keeper discounted |
-| 3 | $225 | +$50 | Third keeper |
-| 4 (max) | $300 | +$75 | Fourth keeper |
+| 0 | $150 | — | Base entry |
+| 1 | $175 | +$25 | First keeper |
+| 2 | $225 | +$50 | Second keeper |
+| 3 | $300 | +$75 | Third keeper |
+| 4 (max) | $400 | +$100 | Fourth keeper |
 
-*Your entry fee covers the league pot **plus** the “salary” of any keepers beyond the first two.*
+*Base entry is $150. Each keeper adds an escalating fee (+$25, +$50, +$75, +$100).*
 
 ---
 
 ## 2. Keeper Eligibility & Round‑Value Table
-1. **Eligibility** – Any player on your roster **after Week 17** is eligible.  
-2. **Round value** is based on where that player was *originally drafted last season* and translated using the table below.  
-3. **Undrafted / waiver pickups** default to a **6th‑round** keeper value.
+1. **Eligibility** – Any player on your roster **after Week 17** is eligible.  
+2. **Round value** is based on where that player was *originally drafted last season*, or — for waiver/FA pickups — the FAAB tier table below.  
+3. **Free-agent adds** (no FAAB bid) default to a **10th‑round** keeper value.
 
 | Drafted Last Year → | Keeper Round This Year |
 |---------------------|------------------------|
@@ -33,13 +34,17 @@
 | 11 | 9 |
 | 12 | 10 |
 | 13 | 10 |
-| 14 | 10 |
+| 14 | 11 |
 | 15 | 11 |
-| 16 | 11 |
-| 17 | 11 |
-| Undrafted | 6 |
-| Free Agent | 6 |
-| Waiver | 6 |
+| 16 | 12 |
+| 17 | 12 |
+| Waiver FAAB > $50 | 4 |
+| Waiver FAAB $35 – $49 | 5 |
+| Waiver FAAB $20 – $34 | 6 |
+| Waiver FAAB $10 – $19 | 7 |
+| Waiver FAAB $5 – $9 | 8 |
+| Waiver FAAB $0 – $4 | 9 |
+| Free Agent | 10 |
 
 * Each time you keep the same player, re‑apply this table to their new “draft round.”  
 * Late steals eventually rise into premium rounds so the talent pool stays fresh.
@@ -128,7 +133,7 @@ When you keep a player, their round cost consumes your pick in that slot.
 | Do I pay the 50% insurance every time I trade a pick? | No — it's charged once per season on your first outgoing pick trade. |
 | What if I trade a pick away and later reacquire that round? | Insurance isn’t refunded; owning that round again restores normal keeper costs. |
 | Can the insurance deposit transfer to a new manager? | Yes — it stays with the franchise and credits the next manager. |
-| Do undrafted waiver pickups always cost a 6th round? | Yes — any undrafted player defaults to a 6th-round keeper cost, reguardless if it's through free agency or waivers (FAAB). |
+| Do undrafted waiver pickups always cost a 6th round? | No — FAAB waiver adds use the tier table (R4–R9 by bid amount). Free-agent adds default to a 10th-round keeper cost. |
 | What if two keepers need the same round after a pick trade? | Apply duplicate-round rule: first keeps that round, next slides up. |
 | When is the 50% insurance fee due? | Within 24 hours of trade approval; unpaid trades are reversed. |
 

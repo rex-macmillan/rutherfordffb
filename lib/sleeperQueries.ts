@@ -34,6 +34,7 @@ import {
   getPlayers,
   getRosters,
   getTradedPicks,
+  getTransactions,
   getUserByUsername,
   getUserLeagues,
   getWinnersBracket,
@@ -42,6 +43,12 @@ import {
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
+
+/** NFL weeks to pull when replaying waiver / FA acquisitions. */
+export const SEASON_TRANSACTION_WEEKS = Array.from(
+  { length: 18 },
+  (_, i) => i + 1,
+);
 
 // ---------- Identity / state ----------
 
@@ -132,6 +139,28 @@ export function useTradedPicks(leagueId: string | undefined) {
     enabled: !!leagueId,
     staleTime: 15 * MINUTE,
   });
+}
+
+/** All completed transactions for a past season (weeks 1–18). Immutable → 24h cache. */
+export function useSeasonTransactions(leagueId: string | undefined) {
+  const results = useQueries({
+    queries: SEASON_TRANSACTION_WEEKS.map((week) => ({
+      queryKey: ["sleeper", "transactions", leagueId, week],
+      queryFn: () => getTransactions(leagueId!, week),
+      enabled: !!leagueId,
+      staleTime: 1 * DAY,
+    })),
+  });
+
+  const isLoading = !!leagueId && results.some((r) => r.isLoading);
+  const error =
+    (results.find((r) => r.error)?.error as Error | null | undefined) ?? null;
+
+  const data = !leagueId || isLoading
+    ? undefined
+    : results.flatMap((r) => r.data ?? []);
+
+  return { data, isLoading, error };
 }
 
 export function usePlayers() {

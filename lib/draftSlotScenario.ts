@@ -16,6 +16,8 @@ export interface SlotPick {
 
 const LOCAL_KEY = (leagueId: string) => `draft-slot-scenario-${leagueId}`;
 
+const EMPTY_PICKS: SlotPick[] = [];
+
 function readPicks(leagueId: string): SlotPick[] {
   if (typeof window === "undefined") return [];
   const raw = window.localStorage.getItem(LOCAL_KEY(leagueId));
@@ -121,7 +123,7 @@ export function useDraftSlotScenario(leagueId: string | undefined) {
       return readPicks(leagueId);
     },
     enabled: !!leagueId,
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
   const persist = useCallback(
@@ -163,7 +165,7 @@ export function useDraftSlotScenario(leagueId: string | undefined) {
   );
 
   return {
-    picks: query.data ?? [],
+    picks: query.data ?? EMPTY_PICKS,
     isLoading: query.isLoading,
     assignSlot,
     undoLast,

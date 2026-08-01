@@ -28,6 +28,8 @@ interface StoredRoster {
 
 type StoredScenarios = Record<string, StoredRoster>;
 
+const EMPTY_SCENARIOS: RosterKeepers[] = [];
+
 function readStore(leagueId: string): StoredScenarios {
   if (typeof window === "undefined") return {};
   const raw = window.localStorage.getItem(LOCAL_KEY(leagueId));
@@ -102,7 +104,7 @@ export function useKeeperScenarios(leagueId: string | undefined) {
       return storeToEntries(readStore(leagueId));
     },
     enabled: !!leagueId,
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
   const saveScenarios = useCallback(
@@ -159,7 +161,7 @@ export function useKeeperScenarios(leagueId: string | undefined) {
   }, [leagueId, qc]);
 
   return {
-    data: query.data ?? [],
+    data: query.data ?? EMPTY_SCENARIOS,
     isLoading: query.isLoading,
     error: query.error,
     saveScenarios,

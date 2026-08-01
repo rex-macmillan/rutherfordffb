@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PlayerTable from "../components/PlayerTable";
 import { CountdownBanner } from "../components/CountdownBanner";
 import { usePanelTabs } from "../components/LeaguePanel";
@@ -20,6 +20,7 @@ import {
   MAX_KEEPERS_PER_TEAM,
   missingByRosterFromDeltas,
 } from "../lib/keepers";
+import { sortPlayerRows, type PlayerSortKey } from "../lib/sortPlayerRows";
 import { cn } from "../lib/cn";
 
 /** "all" = every rostered player + ranked free agents; a number = one roster. */
@@ -71,13 +72,30 @@ export default function KeepersPage() {
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<PlayerSortKey>("pprRank");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const handleSortChange = useCallback(
+    (key: PlayerSortKey, asc?: boolean) => {
+      if (asc !== undefined) {
+        setSortKey(key);
+        setSortAsc(asc);
+        return;
+      }
+      if (key === sortKey) setSortAsc((prev) => !prev);
+      else {
+        setSortKey(key);
+        setSortAsc(true);
+      }
+    },
+    [sortKey],
+  );
 
   useEffect(() => {
-    if (!data) return;
     const map = scenarioMapFromEntries(savedScenarios);
-    setScenario(map);
-    setSavedScenario(map);
-  }, [data, savedScenarios]);
+    setScenario((prev) => (areScenarioMapsEqual(prev, map) ? prev : map));
+    setSavedScenario((prev) => (areScenarioMapsEqual(prev, map) ? prev : map));
+  }, [savedScenarios]);
 
   const positions = useMemo(
     () => Array.from(new Set(data?.rows.map((r) => r.position) ?? [])).sort(),
@@ -108,6 +126,11 @@ export default function KeepersPage() {
         ? filteredByTeam
         : filteredByTeam.filter((p) => p.position === selectedPos),
     [filteredByTeam, selectedPos],
+  );
+
+  const sortedPlayers = useMemo(
+    () => sortPlayerRows(filteredPlayers, sortKey, sortAsc),
+    [filteredPlayers, sortKey, sortAsc],
   );
 
   const selectedKeepers = useMemo(() => {
@@ -409,9 +432,12 @@ export default function KeepersPage() {
       {data && filteredPlayers.length > 0 && (
         <>
           <PlayerTable
-            players={filteredPlayers}
+            players={sortedPlayers}
             selected={selectedKeepers}
             onSelectionChange={handleSelectionChange}
+            sortKey={sortKey}
+            sortAsc={sortAsc}
+            onSortChange={handleSortChange}
             missing={missingForTable}
             showDraftDetails={showDraftDetails}
             maxKeepers={MAX_KEEPERS_PER_TEAM}

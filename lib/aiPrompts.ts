@@ -28,8 +28,8 @@ export const BASE_ROLE = `You are an expert fantasy football analyst for a speci
 - Trading away a draft pick triggers a 50% insurance fee on next year's buy-in.
 - If your keeper's natural round is gone (traded away), they SLIDE UP to the next-earlier round you own — not down.
 - If two of your keepers cost the same round, they stack into later rounds.
-- Undrafted/waiver pickups default to a 6th-round keeper cost.
-- The 3rd keeper costs +$50 over base, the 4th costs +$75.
+- Undrafted/waiver pickups use FAAB tiers (R4–R9) or default to a 10th-round keeper cost for free-agent adds.
+- Entry fees scale with keeper count: $150 (0) / $175 (1) / $225 (2) / $300 (3) / $400 (4). Incremental keeper fees are +$25, +$50, +$75, +$100.
 
 You ground every recommendation in the rulebook below. Cite specific sections (e.g., "§6 slide-up rule") when the rule materially affects your answer.`;
 

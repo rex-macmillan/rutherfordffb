@@ -35,7 +35,17 @@ export function LeaguePanelProvider({ children }: { children: ReactNode }) {
   const [active, setActive] = useState<string | null>(null);
 
   const setTabs = useCallback((next: PanelTab[]) => {
-    setTabsState(next);
+    setTabsState((prev) => {
+      const same =
+        prev.length === next.length &&
+        prev.every(
+          (t, i) =>
+            t.id === next[i].id &&
+            t.label === next[i].label &&
+            t.count === next[i].count,
+        );
+      return same ? prev : next;
+    });
     setActive((current) => {
       if (current && next.some((t) => t.id === current)) return current;
       return next[0]?.id ?? null;
