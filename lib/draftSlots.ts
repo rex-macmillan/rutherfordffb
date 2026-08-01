@@ -75,7 +75,7 @@ function coversAllRosters(
   return rosterIds.every((rid) => assigned.has(rid));
 }
 
-export type SlotMapSource = "sleeper" | "selection" | "roster";
+export type SlotMapSource = "sleeper" | "scenario" | "selection" | "roster";
 
 export interface ResolvedSlotMap {
   /** slot number (as string key) -> rosterId */
@@ -83,6 +83,8 @@ export interface ResolvedSlotMap {
   /** false only when the full order is locked in Sleeper */
   provisional: boolean;
   source: SlotMapSource;
+  /** True when a mock scenario hasn't assigned every team yet. */
+  partial?: boolean;
 }
 
 /**
@@ -108,8 +110,11 @@ export function resolveDraftSlotMap(args: {
   orderIsOfficial: boolean;
   selectionRows: { selectionOrder: number; rosterId: number }[];
   rosterIds: number[];
+  /** Mock slot-selection picks from localStorage — overrides the default. */
+  scenarioSlotMap?: Record<string, number> | null;
 }): ResolvedSlotMap {
-  const { sleeperSlotMap, orderIsOfficial, selectionRows, rosterIds } = args;
+  const { sleeperSlotMap, orderIsOfficial, selectionRows, rosterIds, scenarioSlotMap } =
+    args;
 
   // 1. The commissioner has officially set the order — trust Sleeper.
   if (orderIsOfficial && coversAllRosters(sleeperSlotMap, rosterIds)) {
@@ -120,7 +125,18 @@ export function resolveDraftSlotMap(args: {
     };
   }
 
-  // 2. Default to the slot-selection order (reverse standings).
+  // 2. Local mock slot-selection scenario (even when partial).
+  if (scenarioSlotMap && Object.keys(scenarioSlotMap).length > 0) {
+    const complete = coversAllRosters(scenarioSlotMap, rosterIds);
+    return {
+      slotMap: { ...scenarioSlotMap },
+      provisional: true,
+      source: "scenario",
+      partial: !complete,
+    };
+  }
+
+  // 3. Default to the slot-selection order (reverse standings).
   const selectionMap = selectionOrderSlotMap(selectionRows);
   if (
     coversAllRosters(selectionMap, rosterIds) &&
@@ -129,7 +145,7 @@ export function resolveDraftSlotMap(args: {
     return { slotMap: selectionMap, provisional: true, source: "selection" };
   }
 
-  // 3. Last resort: Sleeper's default (identity / join-order) map, else synthesize it.
+  // 4. Last resort: Sleeper's default (identity / join-order) map, else synthesize it.
   if (coversAllRosters(sleeperSlotMap, rosterIds)) {
     return {
       slotMap: { ...(sleeperSlotMap as Record<string, number>) },

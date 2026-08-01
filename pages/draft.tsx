@@ -8,6 +8,7 @@ import { usePanelTabs } from "../components/LeaguePanel";
 import { KeeperRulesPanel } from "../components/panels/KeeperRulesPanel";
 import { KeepersListPanel } from "../components/panels/KeepersListPanel";
 import { BestAvailablePanel } from "../components/panels/BestAvailablePanel";
+import { Button } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
 import { Avatar } from "../components/ui/Avatar";
 import { Card, CardBody, CardHeader, CardTitle } from "../components/ui/Card";
@@ -25,6 +26,13 @@ import {
   useTradedPicks,
 } from "../lib/sleeperQueries";
 import { useLeagueKeepers } from "../lib/leagueState";
+import {
+  availableSlots,
+  nextSelector,
+  scenarioIsComplete,
+  scenarioToSlotMap,
+  useDraftSlotScenario,
+} from "../lib/draftSlotScenario";
 import { useDraftSelectionOrder } from "../lib/draftOrder";
 import { resolveDraftSlotMap } from "../lib/draftSlots";
 import {
@@ -95,6 +103,7 @@ export default function DraftCenterPage() {
   const selOrder = useDraftSelectionOrder();
 
   const { data: keeperData } = useLeagueKeepers(leagueId);
+  const { picks: slotScenarioPicks } = useDraftSlotScenario(leagueId);
 
   // ----- Tab state, synced with ?tab= so links deep-link correctly -----
   const [tab, setTab] = useState<DraftTab>("board");
@@ -145,20 +154,25 @@ export default function DraftCenterPage() {
     // wait for it to load first so we don't flash the join-order fallback.
     if (!orderIsOfficial && selOrder.isLoading) return null;
 
+    const scenarioSlotMap =
+      slotScenarioPicks.length > 0
+        ? scenarioToSlotMap(slotScenarioPicks)
+        : null;
+
     const {
       slotMap: finalSlotMap,
       provisional: slotsProvisional,
       source: slotSource,
+      partial: slotsPartial,
     } = resolveDraftSlotMap({
       sleeperSlotMap,
       orderIsOfficial,
       selectionRows: selOrder.rows,
       rosterIds,
+      scenarioSlotMap,
     });
 
-    const slotNumbers = Object.keys(finalSlotMap)
-      .map((n) => parseInt(n))
-      .sort((a, b) => a - b);
+    const slotNumbers = Array.from({ length: rosterIds.length }, (_, i) => i + 1);
 
     const ownerToName = teamNameByOwner(usersQ.data!);
     const idToName: Record<number, string> = {};
@@ -176,6 +190,10 @@ export default function DraftCenterPage() {
       grid[r] = {};
       slotNumbers.forEach((s) => {
         const rid = finalSlotMap[String(s)];
+        if (rid == null) {
+          grid[r][s] = { rosterId: null, traded: false, open: true };
+          return;
+        }
         const k = `${r}-${rid}`;
         if (tradedKey.has(k)) {
           grid[r][s] = {
@@ -226,6 +244,7 @@ export default function DraftCenterPage() {
       const round = assignedSlots.get(k.playerId);
       if (round == null) return;
       const slot = slotForRoster[k.rosterId];
+      if (slot == null) return;
       const cell = grid[round]?.[slot];
       if (!cell) return;
       const meta = playersQ.data![k.playerId];
@@ -286,6 +305,9 @@ export default function DraftCenterPage() {
       bestRows,
       slotsProvisional,
       slotSource,
+      slotsPartial,
+      slotScenarioCount: slotScenarioPicks.length,
+      slotScenarioComplete: scenarioIsComplete(slotScenarioPicks, rosterIds),
       slotForRoster,
     };
   }, [
@@ -301,6 +323,7 @@ export default function DraftCenterPage() {
     season,
     selOrder.rows,
     selOrder.isLoading,
+    slotScenarioPicks,
   ]);
 
   const mySlot = useMemo(() => {
@@ -396,7 +419,27 @@ export default function DraftCenterPage() {
 
       {activeTab === "board" && (
         <>
-          {board.slotsProvisional && (
+          {board.slotSource === "scenario" && (
+            <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
+              {board.slotScenarioComplete ? (
+                <>Mock slot scenario — all {board.slotNumbers.length} teams assigned.</>
+              ) : (
+                <>
+                  Mock slot scenario in progress — {board.slotScenarioCount} of{" "}
+                  {board.slotNumbers.length} slots assigned.{" "}
+                  <button
+                    type="button"
+                    onClick={() => switchTab("order")}
+                    className="font-medium underline"
+                  >
+                    Continue picking
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {board.slotsProvisional && board.slotSource !== "scenario" && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               {board.slotSource === "selection" ? (
                 <>
@@ -450,7 +493,9 @@ export default function DraftCenterPage() {
         </>
       )}
 
-      {activeTab === "order" && <OrderTab />}
+      {activeTab === "order" && (
+        <OrderTab leagueId={leagueId} rosterCount={rostersQ.data?.length ?? 0} />
+      )}
 
       {activeTab === "recap" && draftComplete && season && (
         <DraftRecap season={season} picks={recapPicks} />
@@ -459,9 +504,40 @@ export default function DraftCenterPage() {
   );
 }
 
-/** Slot-selection order — the old /draft-order page, now a Draft tab. */
-function OrderTab() {
+/** Slot-selection order + mock slot picker. */
+function OrderTab({
+  leagueId,
+  rosterCount,
+}: {
+  leagueId: string | undefined;
+  rosterCount: number;
+}) {
   const { rows, seasonLabel, isLoading, error } = useDraftSelectionOrder();
+  const {
+    picks,
+    assignSlot,
+    undoLast,
+    clear,
+    autoFillDefault,
+  } = useDraftSlotScenario(leagueId);
+
+  const nextRosterId = useMemo(
+    () => nextSelector(rows, picks),
+    [rows, picks],
+  );
+  const nextTeam = useMemo(
+    () => rows.find((r) => r.rosterId === nextRosterId),
+    [rows, nextRosterId],
+  );
+  const openSlots = useMemo(
+    () => availableSlots(rosterCount || rows.length, picks),
+    [rosterCount, rows.length, picks],
+  );
+  const rosterIds = useMemo(() => rows.map((r) => r.rosterId), [rows]);
+  const complete = scenarioIsComplete(picks, rosterIds);
+
+  const pickLabel = (rosterId: number) =>
+    rows.find((r) => r.rosterId === rosterId)?.teamName ?? `Team ${rosterId}`;
 
   if (isLoading) {
     return (
@@ -493,6 +569,117 @@ function OrderTab() {
         <Card>
           <CardBody className="text-sm text-ink-700">
             No completed bracket data found yet for the previous season.
+          </CardBody>
+        </Card>
+      )}
+
+      {rows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Mock slot selection</CardTitle>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <p className="text-sm text-ink-600">
+              Walk through slot selection one pick at a time — saved on this device
+              only. The{" "}
+              <strong className="font-medium text-ink-800">Board</strong> tab updates
+              as you assign slots; keeper values follow your scenario too.
+            </p>
+
+            {!complete && nextTeam && (
+              <div className="space-y-3 rounded-lg border border-brand-200 bg-brand-50/50 p-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-800">
+                    On the clock
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Avatar avatarId={nextTeam.avatarId} alt={nextTeam.teamName} size={36} />
+                    <div>
+                      <div className="font-semibold text-ink-900">{nextTeam.teamName}</div>
+                      <div className="text-xs text-ink-500">
+                        Selection pick {picks.length + 1} of {rows.length} · finished{" "}
+                        {ordinal(nextTeam.place)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 text-xs font-medium text-ink-600">
+                    Choose a slot
+                  </div>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {openSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => assignSlot(nextTeam.rosterId, slot)}
+                        className="min-h-11 rounded-lg border border-ink-200 bg-white text-sm font-semibold tabular-nums text-ink-800 shadow-sm transition-colors hover:border-brand-300 hover:bg-brand-50"
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {complete && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                Scenario complete — switch to the Board tab to see keepers in these
+                columns.
+              </div>
+            )}
+
+            {picks.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                  Your scenario
+                </div>
+                <ul className="divide-y divide-ink-100 rounded-lg border border-ink-200 text-sm">
+                  {picks.map((p, idx) => (
+                    <li
+                      key={`${p.rosterId}-${p.slot}`}
+                      className="flex items-center justify-between px-3 py-2"
+                    >
+                      <span className="text-ink-500 tabular-nums">{idx + 1}.</span>
+                      <span className="min-w-0 flex-1 truncate font-medium text-ink-900">
+                        {pickLabel(p.rosterId)}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-ink-600">
+                        → slot {p.slot}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={picks.length === 0}
+                onClick={undoLast}
+              >
+                Undo last
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={rows.length === 0}
+                onClick={() => autoFillDefault(rows)}
+              >
+                Auto-fill default
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={picks.length === 0}
+                onClick={clear}
+              >
+                Clear scenario
+              </Button>
+            </div>
           </CardBody>
         </Card>
       )}

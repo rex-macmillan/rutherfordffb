@@ -19,6 +19,10 @@
 import { useMemo } from "react";
 import { useCurrentLeague } from "./leagueHooks";
 import {
+  scenarioToSlotMap,
+  useDraftSlotScenario,
+} from "./draftSlotScenario";
+import {
   draftOrderIsOfficial,
   resolveDraftSlotMap,
   rosterSlotMap,
@@ -290,10 +294,12 @@ export interface ResolvedDraftSlots {
  */
 export function useResolvedDraftSlots(): ResolvedDraftSlots {
   const { league } = useCurrentLeague();
-  const rostersQ = useRosters(league?.league_id);
-  const draftsQ = useLeagueDrafts(league?.league_id);
+  const leagueId = league?.league_id;
+  const rostersQ = useRosters(leagueId);
+  const draftsQ = useLeagueDrafts(leagueId);
   const draftQ = useDraft(draftsQ.data?.[0]?.draft_id);
   const selOrder = useDraftSelectionOrder();
+  const { picks: scenarioPicks } = useDraftSlotScenario(leagueId);
 
   const isLoading =
     rostersQ.isLoading || draftsQ.isLoading || draftQ.isLoading || selOrder.isLoading;
@@ -301,6 +307,8 @@ export function useResolvedDraftSlots(): ResolvedDraftSlots {
   return useMemo(() => {
     const rosterIds = rostersQ.data?.map((r) => r.roster_id) ?? [];
     const orderIsOfficial = draftOrderIsOfficial(draftQ.data);
+    const scenarioSlotMap =
+      scenarioPicks.length > 0 ? scenarioToSlotMap(scenarioPicks) : null;
     const { slotMap, provisional } = resolveDraftSlotMap({
       sleeperSlotMap:
         (draftQ.data?.slot_to_roster_id as Record<string, number>) ||
@@ -309,6 +317,7 @@ export function useResolvedDraftSlots(): ResolvedDraftSlots {
       orderIsOfficial,
       selectionRows: selOrder.rows,
       rosterIds,
+      scenarioSlotMap,
     });
     return {
       slotByRoster: rosterSlotMap(slotMap),
@@ -317,5 +326,5 @@ export function useResolvedDraftSlots(): ResolvedDraftSlots {
       snake: (draftQ.data?.type ?? "snake") !== "linear",
       isLoading,
     };
-  }, [rostersQ.data, draftQ.data, selOrder.rows, isLoading]);
+  }, [rostersQ.data, draftQ.data, selOrder.rows, scenarioPicks, isLoading]);
 }

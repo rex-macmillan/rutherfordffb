@@ -7,12 +7,13 @@ interface TeamOption {
 }
 
 interface PickCell {
-  rosterId: number;
+  rosterId: number | null;
   traded: boolean;
   fromRosterId?: number;
   keeper?: boolean;
   playerName?: string;
   position?: string;
+  open?: boolean;
 }
 
 interface Props {
@@ -44,6 +45,7 @@ const DraftBoard: React.FC<Props> = ({
         <div className="sticky left-0 top-0 z-20 border-b border-r border-ink-700 bg-ink-900" />
         {slots.map((s) => {
           const rid = picksByRound[1]?.[s]?.rosterId;
+          const open = picksByRound[1]?.[s]?.open;
           const mine = highlightSlot != null && s === highlightSlot;
           return (
             <div
@@ -51,9 +53,12 @@ const DraftBoard: React.FC<Props> = ({
               className={cn(
                 "sticky top-0 z-10 grid place-items-center border-b border-r border-ink-700 bg-ink-900 px-1 text-center text-[0.7rem] font-medium leading-tight text-ink-100",
                 mine && "shadow-[inset_0_-3px_0_var(--color-brand-500)] text-white",
+                open && "text-ink-400 italic",
               )}
             >
-              {rosterIdToName[rid] || `Slot ${s}`}
+              {open || rid == null
+                ? "Open"
+                : rosterIdToName[rid] || `Team ${rid}`}
             </div>
           );
         })}
@@ -78,6 +83,19 @@ const DraftBoard: React.FC<Props> = ({
                     )}
                   />
                 );
+              if (cell.open) {
+                return (
+                  <div
+                    key={`${round}-${slot}`}
+                    className={cn(
+                      "border-b border-r border-dashed border-ink-200 bg-ink-50/60 px-1 py-1.5 text-center text-[0.65rem] italic text-ink-400",
+                      mine && "bg-brand-50/50",
+                    )}
+                  >
+                    —
+                  </div>
+                );
+              }
               return (
                 <div
                   key={`${round}-${slot}`}
@@ -101,7 +119,9 @@ const DraftBoard: React.FC<Props> = ({
                         → traded
                       </div>
                       <div className="text-[0.7rem] text-ink-700">
-                        {rosterIdToName[cell.rosterId]}
+                        {cell.rosterId != null
+                          ? rosterIdToName[cell.rosterId]
+                          : "—"}
                       </div>
                       <div className="text-[0.65rem] text-ink-400">{label}</div>
                     </div>

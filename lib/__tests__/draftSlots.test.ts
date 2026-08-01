@@ -43,6 +43,22 @@ describe("resolveDraftSlotMap", () => {
     expect(r.slotMap).toEqual(sleeperSlotMap);
   });
 
+  it("uses a mock scenario before the selection default", () => {
+    const identityMap = { "1": 11, "2": 22, "3": 33, "4": 44 };
+    const scenario = { "3": 44, "7": 33 };
+    const r = resolveDraftSlotMap({
+      sleeperSlotMap: identityMap,
+      orderIsOfficial: false,
+      selectionRows,
+      rosterIds,
+      scenarioSlotMap: scenario,
+    });
+    expect(r.source).toBe("scenario");
+    expect(r.provisional).toBe(true);
+    expect(r.partial).toBe(true);
+    expect(r.slotMap).toEqual(scenario);
+  });
+
   it("defaults to selection order even though Sleeper returns a default (identity) slot map", () => {
     // The regression we caught: pre-draft, Sleeper fills slot_to_roster_id with
     // the identity/join map, but draft_order is null → not official.
